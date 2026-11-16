@@ -4,67 +4,114 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Akeed ERP</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
-:root{--navy:#14284b;--orange:#f08c1e;--bg:#f4f6fa;--line:#dfe3ea;--text:#1d2433;--muted:#6b7385;--ok:#1e8e3e;--bad:#c62828}
+:root{--navy:#14284b;--navy2:#1c3561;--orange:#f08c1e;--bg:#f4f6fa;--line:#dfe3ea;--text:#1d2433;--muted:#6b7385;--ok:#1e8e3e;--bad:#c62828;--blue:#1565c0}
 *{box-sizing:border-box}
 body{margin:0;font-family:"Segoe UI",Tahoma,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
 .app{display:flex;min-height:100vh}
-aside{width:250px;background:var(--navy);color:#fff;flex-shrink:0;overflow-y:auto;max-height:100vh;position:sticky;top:0}
-aside h1{font-size:18px;margin:0;padding:18px 16px;border-bottom:1px solid rgba(255,255,255,.12)}
+aside{width:260px;background:var(--navy);color:#fff;flex-shrink:0;overflow-y:auto;height:100vh;position:sticky;top:0}
+aside h1{font-size:19px;margin:0;padding:18px 16px 12px}
 aside h1 span{color:var(--orange)}
-.grp{padding:12px 16px 4px;font-size:11px;color:#9fb0cf}
-aside a{display:block;padding:7px 22px;color:#e6ebf5;text-decoration:none;cursor:pointer;font-size:13px}
+.navsearch{padding:0 12px 10px}
+.navsearch input{background:var(--navy2);border:1px solid #2c4877;color:#fff}
+.navsearch input::placeholder{color:#9fb0cf}
+.gh{display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;color:#dbe4f5;font-size:13px;font-weight:600;user-select:none;border-top:1px solid rgba(255,255,255,.06)}
+.gh:hover{background:rgba(255,255,255,.05)}
+.gh .ar{margin-inline-start:auto;transition:.2s;font-size:10px}
+.ng.open .gh .ar{transform:rotate(-90deg)}
+.gi{display:none;padding-bottom:6px}
+.ng.open .gi{display:block}
+aside a{display:block;padding:8px 40px 8px 16px;color:#e6ebf5;text-decoration:none;cursor:pointer;font-size:13px;border-radius:0}
 aside a:hover{background:rgba(255,255,255,.07)}
 aside a.active{background:var(--orange);color:#fff}
-main{flex:1;padding:22px;min-width:0}
-.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.bar h2{margin:0;font-size:20px;margin-inline-end:auto}
+main{flex:1;min-width:0;display:flex;flex-direction:column}
+header.top{display:flex;align-items:center;gap:10px;padding:10px 22px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+.burger{display:none;font-size:18px;padding:4px 10px}
+#crumb{font-size:13px;color:var(--muted)}
+#crumb b{color:var(--text)}
+#page{padding:22px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.bar h2{margin:0;font-size:21px;margin-inline-end:auto}
 .bar label{display:flex;align-items:center;gap:6px;font-size:13px}
 .bar input[type=date]{width:auto}
-button{border:1px solid var(--line);background:#fff;padding:7px 14px;border-radius:6px;cursor:pointer;font:inherit}
+.help{background:#eef4ff;border:1px solid #d6e2fb;color:#2b3f66;padding:10px 12px;border-radius:8px;margin:0 0 14px;font-size:13px;line-height:1.7}
+button{border:1px solid var(--line);background:#fff;padding:8px 14px;border-radius:7px;cursor:pointer;font:inherit}
 button:hover{border-color:#b9c0cf}
 button.pri{background:var(--navy);color:#fff;border-color:var(--navy)}
 button.acc{background:var(--orange);color:#fff;border-color:var(--orange)}
 button.danger{color:var(--bad)}
-button.sm{padding:3px 9px;font-size:12px}
-input,select,textarea{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;width:100%}
+button.sm{padding:3px 10px;font-size:12px}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid #c9d8f5;border-color:#7d9bd6}
 input:disabled,select:disabled,textarea:disabled{background:#f3f4f7;color:#444}
-.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.card h3{margin:0 0 10px;font-size:16px}
 table{width:100%;border-collapse:collapse;background:#fff}
-th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:start;white-space:nowrap}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:start;white-space:nowrap}
 th{background:#eef1f7;font-weight:600;font-size:12px;color:#3b4560;position:sticky;top:0;z-index:1}
-.tbl{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:70vh}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover td{background:#fafbfe}
+.tbl{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:68vh;background:#fff}
 td.num,th.num{text-align:end;font-variant-numeric:tabular-nums}
-.badge{padding:2px 8px;border-radius:10px;font-size:11px}
-.b-draft{background:#fff3e0;color:#b45f06}.b-posted{background:#e6f4ea;color:var(--ok)}.b-rev{background:#fde7e7;color:var(--bad)}
+.badge{padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;display:inline-block}
+.b-draft,.b-hold{background:#fff3e0;color:#b45f06}.b-posted{background:#e6f4ea;color:var(--ok)}.b-rev,.b-error{background:#fde7e7;color:var(--bad)}
+.b-ready{background:#e3f2fd;color:var(--blue)}.b-skip{background:#eceff1;color:#546e7a}
 .modal-bg{position:fixed;inset:0;background:rgba(10,20,40,.45);display:none;align-items:flex-start;justify-content:center;padding:30px 12px;overflow:auto;z-index:50}
-.modal{background:#fff;border-radius:12px;width:min(1100px,100%);padding:18px}
-.modal h3{margin:0 0 12px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 14px}
+.modal{background:#fff;border-radius:14px;width:min(1150px,100%);padding:20px}
+.modal h3{margin:0 0 14px;font-size:18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px}
 .grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
-.grid label.chk{flex-direction:row;align-items:center;gap:8px;color:var(--text)}
+.grid label.chk{flex-direction:row;align-items:center;gap:8px;color:var(--text);font-size:13px}
 .grid label.chk input{width:auto}
 .req::after{content:" *";color:var(--bad)}
-.err{background:#fde7e7;color:var(--bad);padding:8px 12px;border-radius:6px;margin:10px 0;white-space:pre-line}
-.toast{position:fixed;bottom:18px;left:18px;background:var(--navy);color:#fff;padding:10px 16px;border-radius:8px;display:none;z-index:60}
+.err{background:#fde7e7;color:var(--bad);padding:9px 12px;border-radius:7px;margin:10px 0;white-space:pre-line}
+.warn{background:#fff3e0;color:#8a4b00;padding:9px 12px;border-radius:7px;margin:10px 0;white-space:pre-line}
+.toast{position:fixed;bottom:18px;left:18px;background:var(--navy);color:#fff;padding:11px 18px;border-radius:9px;display:none;z-index:60;box-shadow:0 6px 18px rgba(0,0,0,.2)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:14px}
-.kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;border-top:3px solid var(--orange)}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;border-top:3px solid var(--orange)}
 .kpi span{color:var(--muted);font-size:12px}
 .kpi b{display:block;font-size:22px;margin-top:6px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.tile{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;cursor:pointer;display:flex;gap:12px;align-items:center;font-weight:600;text-align:start}
+.tile:hover{border-color:var(--orange);box-shadow:0 3px 10px rgba(240,140,30,.12)}
+.tile i{font-style:normal;font-size:24px}
+.tile small{display:block;font-weight:400;color:var(--muted);font-size:12px;margin-top:2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chips button{border-radius:20px;padding:5px 14px;font-size:13px}
+.chips button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.empty{text-align:center;padding:40px 10px;color:var(--muted)}
 .muted{color:var(--muted)}
 .lines td{padding:4px}
-.lines input,.lines select{padding:4px 6px}
+.lines input,.lines select{padding:5px 7px}
 .tot td{font-weight:700;background:#f7f8fb}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
 ul.check{list-style:none;padding:0;margin:0}
-ul.check li{padding:5px 0}
-@media(max-width:800px){.app{flex-direction:column}aside{width:100%;max-height:none;position:static}}
+ul.check li{padding:7px 0;display:flex;align-items:center;gap:8px;border-bottom:1px dashed var(--line)}
+ul.check li:last-child{border:0}
+ul.check li button{margin-inline-start:auto}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.kv td:first-child{color:var(--muted);width:42%}
+@media(max-width:900px){.two{grid-template-columns:1fr}}
+@media(max-width:800px){
+  aside{position:fixed;right:0;top:0;z-index:40;transform:translateX(100%);transition:.25s;box-shadow:-4px 0 20px rgba(0,0,0,.3)}
+  aside.open{transform:none}
+  .burger{display:inline-block}
+  #page{padding:14px}
+}
 </style>
 </head>
 <body>
 <div class="app">
-  <aside><h1>Akeed <span>ERP</span></h1><nav id="nav"></nav></aside>
-  <main id="main"></main>
+  <aside id="aside"><h1>Akeed <span>ERP</span></h1>
+    <div class="navsearch"><input id="navq" placeholder="ابحث عن شاشة..."></div>
+    <nav id="nav"></nav></aside>
+  <main>
+    <header class="top"><button class="burger" id="burger">☰</button><span id="crumb"></span>
+      <span class="muted" style="margin-inline-start:auto;font-size:12px">💾 الحفظ تلقائي في هذا المتصفح</span></header>
+    <div id="page"></div>
+  </main>
 </div>
 <div class="modal-bg" id="mbg"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
@@ -75,7 +122,7 @@ ul.check li{padding:5px 0}
 /* =================== Helpers =================== */
 const LS_KEY = "akeed_erp_v1";
 const $ = s => document.querySelector(s);
-const mainEl = $("#main"), modalEl = $("#modal");
+const mainEl = $("#page"), modalEl = $("#modal");
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
 const fmt = n => r2(n).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -84,20 +131,30 @@ const today = () => new Date().toISOString().slice(0, 10);
 const iso = d => d.toISOString().slice(0, 10);
 const sum = (arr, k) => (arr || []).reduce((s, x) => s + (Number(x[k]) || 0), 0);
 const addDays = (d, n) => { const x = new Date(d + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() + n); return iso(x); };
-
-function toast(m) { const t = $("#toast"); t.textContent = m; t.style.display = "block"; clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = "none", 2200); }
+const up = v => String(v ?? "").trim().toUpperCase();
+function num(v) { if (typeof v === "number") return v; const s = String(v ?? "").replace(/,/g, "").trim(); if (s === "") return null; const n = Number(s); return isNaN(n) ? null : n; }
+function normDate(v) {
+  if (typeof v === "number" && v > 20000 && v < 80000) return iso(new Date(Math.round((v - 25569) * 86400000)));
+  const s = String(v ?? "").trim(); if (!s) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s); return isNaN(d) ? "" : iso(d);
+}
+function toast(m) { const t = $("#toast"); t.textContent = m; t.style.display = "block"; clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = "none", 2600); }
 function showModal(html) { modalEl.innerHTML = html; modalEl.oninput = null; modalEl.onchange = null; modalEl.onclick = null; $("#mbg").style.display = "flex"; }
 function closeModal() { $("#mbg").style.display = "none"; }
 $("#mbg").addEventListener("click", e => { if (e.target.closest("[data-close]")) closeModal(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 function download(name, text, type = "text/plain") {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([text], {type}));
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], {type}));
   a.download = name; document.body.appendChild(a); a.click(); a.remove();
 }
-function pickFile(accept, cb) {
+function pickFile(accept, cb, binary = false) {
   const f = $("#filePick"); f.value = ""; f.accept = accept;
-  f.onchange = () => { const file = f.files[0]; if (!file) return; const rd = new FileReader(); rd.onload = () => cb(String(rd.result)); rd.readAsText(file, "utf-8"); };
+  f.onchange = () => {
+    const file = f.files[0]; if (!file) return; const rd = new FileReader();
+    rd.onload = () => cb(binary ? rd.result : String(rd.result), file.name);
+    binary ? rd.readAsArrayBuffer(file) : rd.readAsText(file, "utf-8");
+  };
   f.click();
 }
 
@@ -107,67 +164,69 @@ const OUT = t => t.kind === "OUTPUT", INP = t => t.kind === "INPUT";
 const STATUS = {k:"status", l:"الحالة", t:"status", ro:1, def:"DRAFT"};
 
 const S = {
-  company: {title:"الشركة", unique:["code"], fields:[
+  company: {title:"الشركة", help:"بيانات الشركة اللي بتظهر على الفواتير. الرقم الضريبي مطلوب لفواتير ZATCA.", unique:["code"], fields:[
     {k:"code",l:"الكود",req:1},{k:"name",l:"الاسم (EN)",req:1},{k:"nameAr",l:"الاسم (AR)"},
     {k:"vat",l:"الرقم الضريبي",pattern:"^3\\d{13}3$",hint:"15 رقم يبدأ وينتهي بـ 3"},
     {k:"cr",l:"السجل التجاري",list:false},{k:"city",l:"المدينة"},{k:"address",l:"العنوان",list:false},
     {k:"baseCurrency",l:"عملة الأساس",t:"ref",ref:"currency",req:1}]},
-  currency: {title:"العملات", unique:["code"], fields:[
+  currency: {title:"العملات", help:"العملات اللي بتستخدمها. عملة الأساس بتتحدد في شاشة الشركة.", unique:["code"], fields:[
     {k:"code",l:"الكود",req:1,pattern:"^[A-Z]{3}$",hint:"3 حروف كبيرة"},{k:"name",l:"الاسم",req:1},
     {k:"decimals",l:"الكسور العشرية",t:"num",def:2,min:0}]},
-  fxRate: {title:"أسعار الصرف", unique:[["currency","date"]], label:r => `${refCode("currency",r.currency)} ${r.date}`, fields:[
+  fxRate: {title:"أسعار الصرف", help:"سعر كل عملة مقابل عملة الأساس. السيستم بياخد آخر سعر قبل تاريخ المستند.", unique:[["currency","date"]], label:r => `${refCode("currency",r.currency)} ${r.date}`, fields:[
     {k:"currency",l:"العملة",t:"ref",ref:"currency",req:1},{k:"date",l:"التاريخ",t:"date",req:1,def:today},
     {k:"rate",l:"السعر مقابل عملة الأساس",t:"num",req:1,min:0.000001}]},
-  numSeq: {title:"تسلسل الأرقام", unique:["code"], fields:[
+  numSeq: {title:"تسلسل الأرقام", help:"شكل الترقيم لكل نوع مستند. الرقم بيتحجز وقت الترحيل بس.", unique:["code"], fields:[
     {k:"code",l:"المستند",t:"enum",req:1,opts:[["JV","قيد يومية"],["INV","فاتورة عميل"],["CN","إشعار دائن عميل"],["VI","فاتورة مورد"],["VCN","إشعار دائن مورد"],["RCPT","سند قبض"],["PAY","سند صرف"]]},
     {k:"prefix",l:"البادئة",req:1},{k:"next",l:"الرقم التالي",t:"num",def:1,req:1,min:1},{k:"pad",l:"عدد الخانات",t:"num",def:6,min:1}]},
-  fiscalYear: {title:"السنوات المالية", unique:["code"], fields:[
+  fiscalYear: {title:"السنوات المالية", help:"لما تضيف سنة مالية، الفترات الشهرية بتتعمل لوحدها.", unique:["code"], fields:[
     {k:"code",l:"الكود",req:1},{k:"start",l:"البداية",t:"date",req:1},{k:"end",l:"النهاية",t:"date",req:1}],
     validate: r => (r.end <= r.start ? "النهاية لازم تكون بعد البداية" : DB.fiscalYear.some(y => y.id !== r.id && y.start <= r.end && y.end >= r.start) ? "السنة متداخلة مع سنة أخرى" : null),
     afterSave: r => { if (!DB.period.some(p => p.year === r.id)) genPeriods(r); }},
-  period: {title:"الفترات المالية", noAdd:1, noDelete:1, label:r => `${refCode("fiscalYear",r.year)}-P${String(r.no).padStart(2,"0")}`, fields:[
+  period: {title:"الفترات المالية", help:"افتح أو علّق أو اقفل الشهور. مفيش ترحيل في فترة مش مفتوحة.", noAdd:1, noDelete:1, label:r => `${refCode("fiscalYear",r.year)}-P${String(r.no).padStart(2,"0")}`, fields:[
     {k:"year",l:"السنة",t:"ref",ref:"fiscalYear",ro:1},{k:"no",l:"رقم الفترة",t:"num",ro:1},
     {k:"start",l:"من",t:"date",ro:1},{k:"end",l:"إلى",t:"date",ro:1},
     {k:"status",l:"الحالة",t:"enum",req:1,opts:[["OPEN","مفتوحة"],["ON_HOLD","معلّقة"],["CLOSED","مقفولة"]]}]},
 
-  account: {title:"الحسابات الرئيسية", unique:["code"], sort:"code", fields:[
+  account: {title:"الحسابات الرئيسية", help:"دليل الحسابات. الحساب التجميعي (مش بيقبل ترحيل) بيكون أب للحسابات اللي تحته.", unique:["code"], sort:"code", fields:[
     {k:"code",l:"رقم الحساب",req:1},{k:"name",l:"الاسم (EN)",req:1},{k:"nameAr",l:"الاسم (AR)"},
     {k:"type",l:"النوع",t:"enum",opts:ACC_TYPES,req:1},{k:"parent",l:"الحساب الأب",t:"ref",ref:"account",filter:a => !a.posting},
     {k:"posting",l:"يقبل ترحيل",t:"bool",def:true},{k:"blocked",l:"موقوف",t:"bool",def:false},
     {k:"reqDim",l:"بُعد إجباري",t:"ref",ref:"dimension",list:false}],
     validate: r => r.parent === r.id ? "الحساب لا يكون أبًا لنفسه" : null},
-  dimension: {title:"الأبعاد المالية", unique:["code"], fields:[{k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1}]},
-  dimValue: {title:"قيم الأبعاد", unique:[["dimension","code"]], label:r => `${refCode("dimension",r.dimension)}:${r.code} ${r.name}`, fields:[
+  dimension: {title:"الأبعاد المالية", help:"تصنيفات إضافية للقيود، زي الإدارة والفرع ونوع الخدمة.", unique:["code"], fields:[{k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1}]},
+  dimValue: {title:"قيم الأبعاد", help:"القيم المسموحة لكل بُعد.", unique:[["dimension","code"]], label:r => `${refCode("dimension",r.dimension)}:${r.code} ${r.name}`, fields:[
     {k:"dimension",l:"البُعد",t:"ref",ref:"dimension",req:1},{k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1},
     {k:"active",l:"نشط",t:"bool",def:true}]},
 
-  taxCode: {title:"أكواد الضريبة", unique:["code"], fields:[
+  taxCode: {title:"أكواد الضريبة", help:"كل كود ضريبة مربوط بحساب الضريبة وبفئة ZATCA.", unique:["code"], fields:[
     {k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1},
     {k:"kind",l:"النوع",t:"enum",req:1,opts:[["OUTPUT","مخرجات (مبيعات)"],["INPUT","مدخلات (مشتريات)"]]},
     {k:"rate",l:"النسبة %",t:"num",req:1,min:0},
     {k:"zatca",l:"فئة ZATCA",t:"enum",req:1,opts:[["S","S - Standard"],["Z","Z - Zero rated"],["E","E - Exempt"],["O","O - Out of scope"]]},
     {k:"account",l:"حساب الضريبة",t:"ref",ref:"account",req:1}]},
-  taxRegion: {title:"المناطق الضريبية", unique:["code"], fields:[
+  taxRegion: {title:"المناطق الضريبية", help:"بتحدد أكواد الضريبة للرحلات المحلية والدولية. لو ملف التذاكر فيه كود منطقة (زي VA أو AC)، ضيفه هنا بنفس الكود وحدد نطاقه.", unique:["code"], fields:[
     {k:"code",l:"الكود",req:1},{k:"name",l:"الوصف",req:1},
     {k:"scope",l:"النطاق",t:"enum",req:1,opts:[["DOM","محلي"],["INTL","دولي"]]},
     {k:"outTax",l:"ضريبة المبيعات",t:"ref",ref:"taxCode",req:1,filter:OUT},
     {k:"inTax",l:"ضريبة المشتريات",t:"ref",ref:"taxCode",req:1,filter:INP},
     {k:"sfTax",l:"ضريبة رسوم الخدمة",t:"ref",ref:"taxCode",filter:OUT}]},
-  airport: {title:"المطارات", unique:["code"], fields:[
+  airport: {title:"المطارات", help:"المطارات بتحدد إذا كانت الرحلة محلية أو دولية. ضيف أسماء المدن زي ما بتيجي في ملف التذاكر في خانة «أسماء بديلة».", unique:["code"], fields:[
     {k:"code",l:"كود IATA",req:1,pattern:"^[A-Z]{3}$"},{k:"name",l:"الاسم",req:1},{k:"city",l:"المدينة"},
-    {k:"country",l:"الدولة (ISO)",req:1,pattern:"^[A-Z]{2}$"},{k:"region",l:"المنطقة الضريبية",t:"ref",ref:"taxRegion"}]},
+    {k:"country",l:"الدولة (ISO)",req:1,pattern:"^[A-Z]{2}$",hint:"SA للسعودية"},
+    {k:"aliases",l:"أسماء بديلة (بفاصلة)",list:false,hint:"مثال: JEDDAH,JEDDAH KING ABDUL"},
+    {k:"region",l:"المنطقة الضريبية",t:"ref",ref:"taxRegion"}]},
 
-  payTerm: {title:"شروط السداد", unique:["code"], fields:[{k:"code",l:"الكود",req:1},{k:"name",l:"الوصف"},{k:"days",l:"عدد الأيام",t:"num",def:0,min:0}]},
-  payMethod: {title:"طرق الدفع", unique:["code"], fields:[
+  payTerm: {title:"شروط السداد", help:"عدد أيام الاستحقاق من تاريخ الفاتورة.", unique:["code"], fields:[{k:"code",l:"الكود",req:1},{k:"name",l:"الوصف"},{k:"days",l:"عدد الأيام",t:"num",def:0,min:0}]},
+  payMethod: {title:"طرق الدفع", help:"كل طريقة دفع مربوطة بحساب (صندوق، بنك، تسوية بوابة...).", unique:["code"], fields:[
     {k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1},
     {k:"kind",l:"النوع",t:"enum",req:1,opts:[["CASH","نقدي"],["BANK","تحويل بنكي"],["CARD","بطاقة (مدى/فيزا)"],["GATEWAY","بوابة دفع"],["CTA","AMEX CTA / GR"],["WALLET","محفظة"],["CHEQUE","شيك"]]},
     {k:"account",l:"الحساب",t:"ref",ref:"account",req:1},{k:"feePct",l:"عمولة %",t:"num",def:0,min:0},{k:"feeFixed",l:"رسم ثابت",t:"num",def:0,min:0}]},
-  bank: {title:"البنوك", unique:["code"], fields:[
+  bank: {title:"البنوك", help:"حسابات الشركة في البنوك.", unique:["code"], fields:[
     {k:"code",l:"الكود",req:1},{k:"name",l:"اسم البنك",req:1},{k:"iban",l:"IBAN",pattern:"^SA\\d{22}$",hint:"SA + 22 رقم"},
     {k:"currency",l:"العملة",t:"ref",ref:"currency"},{k:"account",l:"الحساب",t:"ref",ref:"account",req:1}]},
 
-  custGroup: {title:"مجموعات العملاء", unique:["code"], fields:[{k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1},{k:"arAccount",l:"حساب الذمم المدينة",t:"ref",ref:"account",req:1}]},
-  customer: {title:"العملاء", unique:["code"], fields:[
+  custGroup: {title:"مجموعات العملاء", help:"كل مجموعة بتحدد حساب الذمم المدينة للعملاء اللي فيها.", unique:["code"], fields:[{k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1},{k:"arAccount",l:"حساب الذمم المدينة",t:"ref",ref:"account",req:1}]},
+  customer: {title:"العملاء", help:"كود العميل لازم يطابق Customer ID في ملف التذاكر، عشان التذاكر تتربط بيه.", unique:["code"], fields:[
     {k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1},{k:"nameAr",l:"الاسم (AR)",list:false},
     {k:"category",l:"الفئة",t:"enum",req:1,def:"B2B",opts:[["B2C","B2C"],["B2B","B2B"],["B2G","B2G"]]},
     {k:"group",l:"المجموعة",t:"ref",ref:"custGroup",req:1},
@@ -176,74 +235,81 @@ const S = {
     {k:"phone",l:"الهاتف",list:false},{k:"email",l:"البريد",list:false},{k:"address",l:"العنوان",list:false},
     {k:"blocked",l:"موقوف",t:"bool",def:false}],
     validate: r => (r.category === "B2B" && !r.vat ? "عملاء B2B لازم يكون لهم رقم ضريبي" : null)},
-  sfContract: {title:"عقود رسوم الخدمة", label:r => `${refCode("customer",r.customer)} / ${refCode("item",r.service)}`, fields:[
+  sfContract: {title:"عقود رسوم الخدمة", help:"نسبة أو مبلغ رسوم الخدمة لكل عميل. بتتحسب لوحدها على التذاكر في الفترة دي.", label:r => `${refCode("customer",r.customer)} / ${refCode("item",r.service)}`, fields:[
     {k:"customer",l:"العميل",t:"ref",ref:"customer",req:1},{k:"service",l:"الخدمة",t:"ref",ref:"item",req:1},
     {k:"basis",l:"الأساس",t:"enum",req:1,opts:[["PUBLISHED","% من السعر المنشور (Fare+Tax)"],["COST","% من التكلفة"],["FLAT","مبلغ ثابت"]]},
     {k:"value",l:"النسبة / المبلغ",t:"num",req:1,min:0},{k:"min",l:"حد أدنى",t:"num",def:0,min:0},
     {k:"vatIncl",l:"شامل الضريبة",t:"bool",def:false},{k:"from",l:"من",t:"date",req:1,def:today},{k:"to",l:"إلى",t:"date"}],
     validate: r => (r.to && r.to < r.from ? "تاريخ النهاية قبل البداية" : null)},
-  salesAgent: {title:"موظفو المبيعات", unique:["code"], fields:[
+  salesAgent: {title:"موظفو المبيعات", help:"الموظفين المسؤولين عن الحجوزات.", unique:["code"], fields:[
     {k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1},{k:"branch",l:"الفرع",t:"ref",ref:"dimValue"},
     {k:"email",l:"البريد"},{k:"active",l:"نشط",t:"bool",def:true}]},
 
-  vendGroup: {title:"مجموعات الموردين", unique:["code"], fields:[{k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1},{k:"apAccount",l:"حساب الذمم الدائنة",t:"ref",ref:"account",req:1}]},
-  vendor: {title:"الموردين", unique:["code"], fields:[
+  vendGroup: {title:"مجموعات الموردين", help:"كل مجموعة بتحدد حساب الذمم الدائنة للموردين اللي فيها.", unique:["code"], fields:[{k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1},{k:"apAccount",l:"حساب الذمم الدائنة",t:"ref",ref:"account",req:1}]},
+  vendor: {title:"الموردين", help:"شركات الطيران وBSP والفنادق وأي مورد تاني.", unique:["code"], fields:[
     {k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1},{k:"nameAr",l:"الاسم (AR)",list:false},
     {k:"group",l:"المجموعة",t:"ref",ref:"vendGroup",req:1},{k:"vat",l:"الرقم الضريبي",pattern:"^3\\d{13}3$"},
     {k:"payTerm",l:"شرط السداد",t:"ref",ref:"payTerm"},{k:"iban",l:"IBAN",list:false},
     {k:"phone",l:"الهاتف",list:false},{k:"email",l:"البريد",list:false},{k:"blocked",l:"موقوف",t:"bool",def:false}]},
-  airline: {title:"شركات الطيران", unique:["code"], fields:[
+  airline: {title:"شركات الطيران", help:"كل شركة طيران لازم تكون مربوطة بمورد (غالبًا BSP). التذكرة بتتعرف بكود IATA أو بالكود الرقمي.", unique:["code"], fields:[
     {k:"code",l:"كود IATA",req:1,pattern:"^[A-Z0-9]{2}$"},{k:"num",l:"الكود الرقمي",req:1,pattern:"^\\d{3}$",hint:"3 أرقام (065 للسعودية)"},
     {k:"name",l:"الاسم",req:1},{k:"vendor",l:"المورد",t:"ref",ref:"vendor",req:1},
     {k:"settle",l:"طريقة التسوية",t:"enum",req:1,opts:[["BSP","BSP"],["DIRECT","مباشر"]]},{k:"comm",l:"عمولة STD %",t:"num",def:0,min:0}]},
 
-  item: {title:"الخدمات / الأصناف", unique:["code"], fields:[
+  item: {title:"الخدمات / الأصناف", help:"كل صنف بيحدد حساب الإيراد والتكلفة والضريبة الافتراضية لسطر الفاتورة.", unique:["code"], fields:[
     {k:"code",l:"الكود",req:1},{k:"name",l:"الاسم",req:1},
     {k:"type",l:"النوع",t:"enum",req:1,opts:[["FLIGHT","طيران"],["HOTEL","فنادق"],["VISA","تأشيرات"],["INSURANCE","تأمين"],["TRANSPORT","نقل"],["FEE","رسوم خدمة"],["OTHER","أخرى"]]},
     {k:"revAccount",l:"حساب الإيراد",t:"ref",ref:"account",req:1},{k:"costAccount",l:"حساب التكلفة",t:"ref",ref:"account"},
     {k:"outTax",l:"ضريبة البيع الافتراضية",t:"ref",ref:"taxCode",filter:OUT},{k:"inTax",l:"ضريبة الشراء الافتراضية",t:"ref",ref:"taxCode",filter:INP}]},
 
-  receipt: {title:"سندات القبض", doc:1, post:p => postPayment(p, true), fields:[
+  receipt: {title:"سندات القبض", help:"تحصيل من العملاء. الترحيل بيعمل قيد: مدين حساب طريقة الدفع / دائن العميل.", doc:1, post:p => postPayment(p, true), fields:[
     {k:"number",l:"الرقم",ro:1},{k:"date",l:"التاريخ",t:"date",req:1,def:today},
     {k:"customer",l:"العميل",t:"ref",ref:"customer",req:1,filter:c => !c.blocked},
     {k:"method",l:"طريقة الدفع",t:"ref",ref:"payMethod",req:1},{k:"amount",l:"المبلغ",t:"num",req:1,min:0.01,money:1},
     {k:"ref",l:"المرجع"},{k:"jv",l:"القيد",ro:1},STATUS]},
-  vendPayment: {title:"سندات الصرف", doc:1, post:p => postPayment(p, false), fields:[
+  vendPayment: {title:"سندات الصرف", help:"سداد للموردين. الترحيل بيعمل قيد: مدين المورد / دائن حساب طريقة الدفع.", doc:1, post:p => postPayment(p, false), fields:[
     {k:"number",l:"الرقم",ro:1},{k:"date",l:"التاريخ",t:"date",req:1,def:today},
     {k:"vendor",l:"المورد",t:"ref",ref:"vendor",req:1,filter:v => !v.blocked},
     {k:"method",l:"طريقة الدفع",t:"ref",ref:"payMethod",req:1},{k:"amount",l:"المبلغ",t:"num",req:1,min:0.01,money:1},
     {k:"ref",l:"المرجع"},{k:"jv",l:"القيد",ro:1},STATUS]},
 };
-const TX_KEYS = ["journal", "arInv", "apInv"];
+const TX_KEYS = ["journal", "arInv", "apInv", "ticket"];
 
 /* =================== Navigation =================== */
 const NAV = [
-  ["الرئيسية", [["dash","لوحة التحكم"]]],
-  ["الإعدادات العامة", [["company","الشركة"],["currency","العملات"],["fxRate","أسعار الصرف"],["numSeq","تسلسل الأرقام"],["fiscalYear","السنوات المالية"],["period","الفترات المالية"]]],
-  ["دليل الحسابات", [["account","الحسابات الرئيسية"],["dimension","الأبعاد المالية"],["dimValue","قيم الأبعاد"]]],
-  ["الضرائب", [["taxCode","أكواد الضريبة"],["taxRegion","المناطق الضريبية"],["airport","المطارات"]]],
-  ["السداد والبنوك", [["payTerm","شروط السداد"],["payMethod","طرق الدفع"],["bank","البنوك"]]],
-  ["العملاء", [["custGroup","مجموعات العملاء"],["customer","العملاء"],["sfContract","عقود رسوم الخدمة"],["salesAgent","موظفو المبيعات"]]],
-  ["الموردين", [["vendGroup","مجموعات الموردين"],["vendor","الموردين"],["airline","شركات الطيران"]]],
-  ["الخدمات", [["item","الخدمات / الأصناف"]]],
-  ["المعاملات", [["journal","القيود اليومية"],["arInv","فواتير العملاء"],["apInv","فواتير الموردين"],["receipt","سندات القبض"],["vendPayment","سندات الصرف"]]],
-  ["التقارير", [["tb","ميزان المراجعة"],["vat","تقرير ضريبة القيمة المضافة"],["balances","أرصدة العملاء والموردين"]]],
-  ["أدوات", [["tools","نسخ احتياطي واستعادة"]]],
+  ["🏠","الرئيسية",[["dash","لوحة التحكم"]]],
+  ["✈️","الطيران",[["flights","استيراد التذاكر"],["airline","شركات الطيران"],["airport","المطارات"],["flightSettings","إعدادات الطيران"]]],
+  ["🧾","المبيعات والعملاء",[["arInv","فواتير العملاء"],["receipt","سندات القبض"],["customer","العملاء"],["custGroup","مجموعات العملاء"],["sfContract","عقود رسوم الخدمة"],["salesAgent","موظفو المبيعات"]]],
+  ["📦","المشتريات والموردين",[["apInv","فواتير الموردين"],["vendPayment","سندات الصرف"],["vendor","الموردين"],["vendGroup","مجموعات الموردين"]]],
+  ["📒","المحاسبة",[["journal","القيود اليومية"],["account","الحسابات الرئيسية"],["dimension","الأبعاد المالية"],["dimValue","قيم الأبعاد"]]],
+  ["📊","التقارير",[["salesReport","مبيعات التذاكر"],["tb","ميزان المراجعة"],["vat","ضريبة القيمة المضافة"],["balances","أرصدة العملاء والموردين"]]],
+  ["⚙️","الإعدادات",[["company","الشركة"],["currency","العملات"],["fxRate","أسعار الصرف"],["numSeq","تسلسل الأرقام"],["fiscalYear","السنوات المالية"],["period","الفترات المالية"],["taxCode","أكواد الضريبة"],["taxRegion","المناطق الضريبية"],["payTerm","شروط السداد"],["payMethod","طرق الدفع"],["bank","البنوك"],["item","الخدمات / الأصناف"],["tools","نسخ احتياطي واستعادة"]]],
 ];
+const PAGES = Object.fromEntries(NAV.flatMap(([ic, g, items]) => items.map(([k, l]) => [k, {g, l}])));
 const JT = {GENERAL:"عام",AR:"مبيعات",AP:"مشتريات",RCPT:"قبض",PAY:"صرف",REVERSAL:"عكس"};
 let current = "dash";
 let RANGE = {from: new Date().getFullYear() + "-01-01", to: today()};
+const openGroups = new Set(["الرئيسية"]);
 
 /* =================== Data store =================== */
 let DB = null;
-function emptyDB() { const d = {}; Object.keys(S).concat(TX_KEYS).forEach(k => d[k] = []); return d; }
+const FLIGHT_DEFAULTS = {tktDom:"TKT-DOM", tktIntl:"TKT-INTL", sfDom:"SF-DOM", sfIntl:"SF-INTL", commAcc:"4103"};
+function emptyDB() { const d = {settings:{}}; Object.keys(S).concat(TX_KEYS).forEach(k => d[k] = []); return d; }
+function ensureShape() {
+  Object.keys(S).concat(TX_KEYS).forEach(k => { if (!Array.isArray(DB[k])) DB[k] = []; });
+  if (!DB.settings || typeof DB.settings !== "object") DB.settings = {};
+  DB.settings.flight = {...FLIGHT_DEFAULTS, ...(DB.settings.flight || {})};
+  if (!DB.settings.flightMap) DB.settings.flightMap = {};
+  if ((DB.settings.v || 1) < 2) { addSeedAirports(DB); DB.settings.v = 2; }
+}
 function load() {
   try { const s = localStorage.getItem(LS_KEY); if (s) DB = JSON.parse(s); } catch (e) { DB = null; }
   if (!DB || typeof DB !== "object") DB = seed();
-  Object.keys(S).concat(TX_KEYS).forEach(k => { if (!Array.isArray(DB[k])) DB[k] = []; });
+  ensureShape();
 }
-function persist() { try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch (e) { toast("تعذر الحفظ في المتصفح"); } }
+function persist() { try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch (e) { toast("تعذر الحفظ في المتصفح (المساحة ممتلئة؟)"); } }
 const rec = (ent, id) => (DB[ent] || []).find(x => x.id === id);
+const byCode = (ent, code) => (DB[ent] || []).find(x => up(x.code) === up(code));
 const refCode = (ent, id) => { const r = rec(ent, id); return r ? (r.code ?? "") : ""; };
 function refLabel(ent, id) {
   const r = rec(ent, id); if (!r) return "";
@@ -258,8 +324,7 @@ function optList(ent, sel, filter, empty = true) {
 function genPeriods(fy, db = DB) {
   let d = new Date(fy.start + "T00:00:00Z"); const end = new Date(fy.end + "T00:00:00Z"); let n = 1;
   while (d <= end) {
-    const e = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
-    const pe = e < end ? e : end;
+    const e = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)); const pe = e < end ? e : end;
     db.period.push({id: uid(), year: fy.id, no: n++, start: iso(d), end: iso(pe), status: "OPEN"});
     d = new Date(pe.getTime() + 86400000);
   }
@@ -283,48 +348,48 @@ function show(f, v) {
   }
 }
 const statusBadge = v => `<span class="badge b-${v === "POSTED" ? "posted" : "draft"}">${v === "POSTED" ? "مرحّل" : "مسودة"}</span>`;
+const helpBox = t => t ? `<div class="help">💡 ${t}</div>` : "";
 
 function renderList(key) {
   const sc = S[key]; if (!sc) return renderDash();
   const cols = sc.fields.filter(f => f.list !== false);
-  const rows = () => {
-    const list = [...DB[key]];
-    if (sc.sort) list.sort((a, b) => String(a[sc.sort]).localeCompare(String(b[sc.sort])));
-    return list;
-  };
+  const rows = () => { const list = [...DB[key]]; if (sc.sort) list.sort((a, b) => String(a[sc.sort]).localeCompare(String(b[sc.sort]))); return list; };
   mainEl.innerHTML = `<div class="bar"><h2>${sc.title}</h2>
-    <input id="q" placeholder="بحث..." style="max-width:220px">
-    ${sc.doc ? "" : '<button id="tpl">قالب CSV</button><button id="imp">استيراد CSV</button>'}
-    <button id="exp">تصدير CSV</button>
+    <input id="q" placeholder="🔍 بحث..." style="max-width:240px">
+    ${sc.doc ? "" : '<button id="tpl" title="تنزيل ملف فاضي بالأعمدة">قالب CSV</button><button id="imp">⬆ استيراد</button>'}
+    <button id="exp">⬇ تصدير</button>
     ${sc.noAdd ? "" : '<button class="pri" id="add">+ إضافة</button>'}</div>
+    ${helpBox(sc.help)}
     <div class="tbl"><table><thead><tr>${cols.map(c => `<th class="${c.t === "num" ? "num" : ""}">${c.l}</th>`).join("")}<th></th></tr></thead><tbody id="tb"></tbody></table></div>
     <p class="muted" id="cnt"></p>`;
   const draw = () => {
-    const q = $("#q").value.trim().toLowerCase();
-    const list = rows().filter(r => !q || cols.some(c => String(show(c, r[c.k])).toLowerCase().includes(q)));
-    $("#tb").innerHTML = list.map(r => {
-      const posted = r.status === "POSTED";
-      const acts = sc.doc
-        ? (posted ? `<button class="sm" data-edit="${r.id}">عرض</button>`
-                  : `<button class="sm" data-edit="${r.id}">تعديل</button> <button class="sm acc" data-post="${r.id}">ترحيل</button> <button class="sm danger" data-del="${r.id}">حذف</button>`)
-        : `<button class="sm" data-edit="${r.id}">تعديل</button>${sc.noDelete ? "" : ` <button class="sm danger" data-del="${r.id}">حذف</button>`}`;
-      return `<tr>${cols.map(c => `<td class="${c.t === "num" ? "num" : ""}">${c.t === "status" ? statusBadge(r[c.k]) : esc(show(c, r[c.k]))}</td>`).join("")}<td>${acts}</td></tr>`;
-    }).join("") || `<tr><td colspan="${cols.length + 1}" class="muted">لا توجد بيانات</td></tr>`;
-    $("#cnt").textContent = `${list.length} من ${DB[key].length} سجل`;
+    const q = $("#q").value.trim().toLowerCase(), all = rows();
+    const list = all.filter(r => !q || cols.some(c => String(show(c, r[c.k])).toLowerCase().includes(q)));
+    if (!all.length) {
+      $("#tb").innerHTML = `<tr><td colspan="${cols.length + 1}"><div class="empty">لسه مفيش ${sc.title}.<br><br>${sc.noAdd ? "" : '<button class="pri" id="add2">+ أضف أول سجل</button>'}</div></td></tr>`;
+    } else {
+      $("#tb").innerHTML = list.map(r => {
+        const posted = r.status === "POSTED";
+        const acts = sc.doc
+          ? (posted ? "" : `<button class="sm acc" data-post="${r.id}">ترحيل</button> <button class="sm danger" data-del="${r.id}">حذف</button>`)
+          : (sc.noDelete ? "" : `<button class="sm danger" data-del="${r.id}">حذف</button>`);
+        return `<tr class="click" data-row="${r.id}">${cols.map(c => `<td class="${c.t === "num" ? "num" : ""}">${c.t === "status" ? statusBadge(r[c.k]) : esc(show(c, r[c.k]))}</td>`).join("")}<td>${acts}</td></tr>`;
+      }).join("") || `<tr><td colspan="${cols.length + 1}" class="muted">مفيش نتائج للبحث</td></tr>`;
+    }
+    $("#cnt").textContent = `${list.length} من ${all.length} سجل`;
   };
   $("#q").oninput = draw; draw();
   mainEl.onclick = e => {
-    const b = e.target.closest("button"); if (!b) return;
-    if (b.id === "add") return openForm(key);
+    const b = e.target.closest("button");
+    if (!b) { const tr = e.target.closest("tr[data-row]"); if (tr) openForm(key, tr.dataset.row); return; }
+    if (b.id === "add" || b.id === "add2") return openForm(key);
     if (b.id === "exp") return exportCSV(key);
     if (b.id === "tpl") return download(`${key}-template.csv`, "\ufeff" + sc.fields.filter(f => !f.ro && f.t !== "status").map(f => `"${f.l}"`).join(","), "text/csv");
     if (b.id === "imp") return pickFile(".csv,text/csv", t => importCSV(key, t));
-    const {edit, del, post} = b.dataset;
-    if (edit) openForm(key, edit);
-    else if (del) delRec(key, del);
+    const {del, post} = b.dataset;
+    if (del) delRec(key, del);
     else if (post) {
-      const r = rec(key, post);
-      try { sc.post(r); persist(); toast("تم الترحيل"); route(key); }
+      try { sc.post(rec(key, post)); persist(); toast("تم الترحيل ✓"); route(key); }
       catch (err) { alert(err.message); }
     }
   };
@@ -347,11 +412,7 @@ function readField(f) {
   if (f.t === "num") return el.value === "" ? null : Number(el.value);
   return el.value.trim();
 }
-function defaults(sc) {
-  const r = {};
-  sc.fields.forEach(f => { if (f.def !== undefined) r[f.k] = typeof f.def === "function" ? f.def() : f.def; });
-  return r;
-}
+function defaults(sc) { const r = {}; sc.fields.forEach(f => { if (f.def !== undefined) r[f.k] = typeof f.def === "function" ? f.def() : f.def; }); return r; }
 function validateRec(key, r) {
   const sc = S[key], errs = [];
   for (const f of sc.fields) {
@@ -381,23 +442,24 @@ function openForm(key, id) {
   showModal(`<h3>${old ? (ro ? "عرض" : "تعديل") : "إضافة"} — ${sc.title}</h3>
     <div class="grid">${sc.fields.map(f => fieldHtml(f, r[f.k], ro)).join("")}</div>
     <div id="ferr"></div>
-    <div class="bar" style="margin-top:14px"><span style="margin-inline-end:auto"></span>
+    <div class="bar" style="margin-top:16px"><span style="margin-inline-end:auto"></span>
     <button data-close>إغلاق</button>${ro ? "" : '<button class="pri" id="fsave">حفظ</button>'}</div>`);
   if (ro) return;
+  const first = modalEl.querySelector("input:not([disabled]),select:not([disabled])"); if (first) first.focus();
   $("#fsave").onclick = () => {
     for (const f of sc.fields) { if (f.ro || f.t === "status") continue; r[f.k] = readField(f); }
     const errs = validateRec(key, r);
     if (errs.length) { $("#ferr").innerHTML = `<div class="err">${esc(errs.join("\n"))}</div>`; return; }
     const target = old ? Object.assign(old, r) : (DB[key].push(r), r);
     if (sc.afterSave) sc.afterSave(target, !old);
-    persist(); closeModal(); toast("تم الحفظ"); route(key);
+    persist(); closeModal(); toast("تم الحفظ ✓"); route(current);
   };
 }
 function delRec(key, id) {
   const r = rec(key, id);
   if (r.status === "POSTED") return alert("لا يمكن حذف مستند مرحّل");
   const rest = JSON.stringify(Object.fromEntries(Object.entries(DB).map(([k, v]) => [k, k === key ? v.filter(x => x.id !== id) : v])));
-  if (rest.includes(`"${id}"`)) return alert("لا يمكن الحذف: السجل مستخدم في بيانات أخرى");
+  if (rest.includes(`"${id}"`)) return alert("مينفعش تحذفه: السجل ده مستخدم في بيانات تانية");
   if (!confirm("تأكيد الحذف؟")) return;
   DB[key] = DB[key].filter(x => x.id !== id); persist(); route(key);
 }
@@ -405,7 +467,7 @@ function delRec(key, id) {
 /* =================== CSV import / export =================== */
 function toCSV(rows) { return "\ufeff" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"); }
 function exportCSV(key) {
-  const sc = S[key], fs = sc.fields;
+  const fs = S[key].fields;
   const rows = [fs.map(f => f.l), ...DB[key].map(r => fs.map(f => f.t === "ref" ? (refCode(f.ref, r[f.k]) || refLabel(f.ref, r[f.k])) : f.t === "bool" ? (r[f.k] ? "1" : "0") : (r[f.k] ?? "")))];
   download(`${key}-${today()}.csv`, toCSV(rows), "text/csv");
 }
@@ -416,31 +478,31 @@ function parseCSV(text) {
     const c = text[i];
     if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
     else if (c === '"') q = true;
-    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "," || c === "\t") { row.push(cell); cell = ""; }
     else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
     else if (c !== "\r") cell += c;
   }
   if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
-  return rows.filter(r => r.some(x => x.trim() !== ""));
+  return rows.filter(r => r.some(x => String(x).trim() !== ""));
 }
 function importCSV(key, text) {
   const sc = S[key], rows = parseCSV(text);
   if (rows.length < 2) return alert("الملف فاضي أو بدون بيانات");
   const fmap = rows[0].map(h => sc.fields.find(f => f.k === h.trim() || f.l === h.trim()));
   const codeIdx = fmap.findIndex(f => f && f.k === "code");
-  const byCode = (sc.unique || []).includes("code");
+  const hasCode = (sc.unique || []).includes("code");
   let ok = 0; const errs = [];
   rows.slice(1).forEach((cells, ri) => {
     const code = codeIdx >= 0 ? (cells[codeIdx] || "").trim().toLowerCase() : "";
-    const existing = byCode && code ? DB[key].find(x => String(x.code).toLowerCase() === code) : null;
+    const existing = hasCode && code ? DB[key].find(x => String(x.code).toLowerCase() === code) : null;
     const r = existing ? {...existing} : {id: uid(), ...defaults(sc)};
     const e = [];
     fmap.forEach((f, ci) => {
       if (!f || f.ro || f.t === "status") return;
-      const raw = (cells[ci] ?? "").trim();
+      const raw = String(cells[ci] ?? "").trim();
       if (f.t === "ref") {
         if (!raw) { r[f.k] = ""; return; }
-        const t = DB[f.ref].find(x => (x.code && String(x.code).toLowerCase() === raw.toLowerCase()) || refLabel(f.ref, x.id) === raw);
+        const t = DB[f.ref].find(x => (x.code && up(x.code) === up(raw)) || refLabel(f.ref, x.id) === raw);
         if (!t) e.push(`${f.l}: "${raw}" غير موجود`); else r[f.k] = t.id;
       } else if (f.t === "enum") {
         const o = f.opts.find(o => o[0] === raw || o[1] === raw);
@@ -470,37 +532,32 @@ function validateJournal(j) {
   const e = [];
   const lines = (j.lines || []).filter(l => l && (l.acc || Number(l.dr) || Number(l.cr)));
   if (!j.date) e.push("التاريخ مطلوب");
-  else {
-    const p = findPeriod(j.date);
-    if (!p) e.push(`لا توجد فترة مالية للتاريخ ${j.date}`);
-    else if (p.status !== "OPEN") e.push(`الفترة التي تشمل ${j.date} غير مفتوحة`);
-  }
-  if (lines.length < 2) e.push("القيد يحتاج سطرين على الأقل");
+  else { const p = findPeriod(j.date); if (!p) e.push(`لا توجد فترة مالية للتاريخ ${j.date}`); else if (p.status !== "OPEN") e.push(`الفترة اللي فيها ${j.date} مش مفتوحة`); }
+  if (lines.length < 2) e.push("القيد محتاج سطرين على الأقل");
   let dr = 0, cr = 0;
   lines.forEach((l, i) => {
     const n = i + 1, a = rec("account", l.acc);
-    if (!a) { e.push(`سطر ${n}: اختر الحساب`); return; }
-    if (!a.posting) e.push(`سطر ${n}: الحساب ${a.code} تجميعي ولا يقبل ترحيل`);
+    if (!a) { e.push(`سطر ${n}: اختار الحساب`); return; }
+    if (!a.posting) e.push(`سطر ${n}: الحساب ${a.code} تجميعي ومش بيقبل ترحيل`);
     if (a.blocked) e.push(`سطر ${n}: الحساب ${a.code} موقوف`);
     const d = r2(l.dr), c = r2(l.cr);
-    if (d < 0 || c < 0 || (d > 0) === (c > 0)) e.push(`سطر ${n}: لازم مدين أو دائن موجب (واحد فقط)`);
-    if (a.reqDim) { const dv = rec("dimValue", l.dim); if (!dv || dv.dimension !== a.reqDim) e.push(`سطر ${n}: الحساب ${a.code} يتطلب بُعد ${refLabel("dimension", a.reqDim)}`); }
+    if (d < 0 || c < 0 || (d > 0) === (c > 0)) e.push(`سطر ${n}: لازم مدين أو دائن موجب (واحد بس)`);
+    if (a.reqDim) { const dv = rec("dimValue", l.dim); if (!dv || dv.dimension !== a.reqDim) e.push(`سطر ${n}: الحساب ${a.code} محتاج بُعد ${refLabel("dimension", a.reqDim)}`); }
     dr += d; cr += c;
   });
-  if (r2(dr) !== r2(cr)) e.push(`القيد غير متوازن: مدين ${fmt(dr)} / دائن ${fmt(cr)}`);
+  if (r2(dr) !== r2(cr)) e.push(`القيد مش متوازن: مدين ${fmt(dr)} / دائن ${fmt(cr)}`);
   return {errs: e, lines};
 }
 function postJournal(j) {
   const {errs, lines} = validateJournal(j);
   if (errs.length) throw new Error(errs.join("\n"));
   j.lines = lines.map(l => ({...l, dr: r2(l.dr), cr: r2(l.cr)}));
-  j.number = j.number || nextNo("JV");
-  j.status = "POSTED"; j.postedAt = new Date().toISOString();
+  j.number = j.number || nextNo("JV"); j.status = "POSTED"; j.postedAt = new Date().toISOString();
   if (!DB.journal.includes(j)) DB.journal.push(j);
   return j;
 }
 function reverseJournal(j, date) {
-  if (j.status !== "POSTED") throw new Error("القيد غير مرحّل");
+  if (j.status !== "POSTED") throw new Error("القيد مش مرحّل");
   if (j.reversedBy) throw new Error("القيد معكوس بالفعل");
   const rv = {id: uid(), date, type: "REVERSAL", desc: `عكس القيد ${j.number}`, status: "DRAFT", source: j.number,
     lines: j.lines.map(l => ({...l, dr: l.cr, cr: l.dr, base: l.base != null ? -l.base : null}))};
@@ -509,18 +566,16 @@ function reverseJournal(j, date) {
 function controlAccount(ar, party) {
   const g = rec(ar ? "custGroup" : "vendGroup", party.group);
   const acc = g && (ar ? g.arAccount : g.apAccount);
-  if (!acc) throw new Error("مجموعة الطرف بدون حساب رقابة");
+  if (!acc) throw new Error(`مجموعة ${party.code} مش مربوطة بحساب رقابة`);
   return acc;
 }
 function postedLines(from, to) {
   const out = [];
-  DB.journal.forEach(j => {
-    if (j.status !== "POSTED" || (from && j.date < from) || (to && j.date > to)) return;
-    j.lines.forEach(l => out.push({j, l}));
-  });
+  DB.journal.forEach(j => { if (j.status !== "POSTED" || (from && j.date < from) || (to && j.date > to)) return; j.lines.forEach(l => out.push({j, l})); });
   return out;
 }
 function partyBalance(field, id) { return r2(postedLines().filter(({l}) => l[field] === id).reduce((s, {l}) => s + l.dr - l.cr, 0)); }
+function withRollback(fn) { const snap = JSON.stringify(DB); try { return fn(); } catch (e) { DB = JSON.parse(snap); throw e; } }
 
 /* Payments */
 function postPayment(p, ar) {
@@ -529,12 +584,10 @@ function postPayment(p, ar) {
   if (party.blocked) throw new Error(`${party.code} موقوف`);
   if (!(Number(p.amount) > 0)) throw new Error("المبلغ لازم يكون موجب");
   const ctrl = controlAccount(ar, party), amt = r2(p.amount);
-  const lines = ar ? [L(m.account, amt), L(ctrl, -amt, {cust: party.id})]
-                   : [L(ctrl, amt, {vend: party.id}), L(m.account, -amt)];
+  const lines = ar ? [L(m.account, amt), L(ctrl, -amt, {cust: party.id})] : [L(ctrl, amt, {vend: party.id}), L(m.account, -amt)];
   const j = {id: uid(), date: p.date, type: ar ? "RCPT" : "PAY", desc: `${ar ? "قبض من" : "صرف إلى"} ${party.name}${p.ref ? " — " + p.ref : ""}`, status: "DRAFT", lines};
   const v = validateJournal(j); if (v.errs.length) throw new Error(v.errs.join("\n"));
-  postJournal(j);
-  p.jv = j.number; p.number = nextNo(ar ? "RCPT" : "PAY"); p.status = "POSTED";
+  postJournal(j); p.jv = j.number; p.number = nextNo(ar ? "RCPT" : "PAY"); p.status = "POSTED";
 }
 
 /* Invoices */
@@ -546,19 +599,19 @@ function invTotals(inv) {
 function postInvoice(kind, inv) {
   const ar = kind === "AR", key = ar ? "arInv" : "apInv";
   const party = rec(ar ? "customer" : "vendor", inv.party), e = [];
-  if (!party) e.push(ar ? "اختر العميل" : "اختر المورد"); else if (party.blocked) e.push(`${party.code} موقوف`);
+  if (!party) e.push(ar ? "اختار العميل" : "اختار المورد"); else if (party.blocked) e.push(`${party.code} موقوف`);
   if (!inv.date) e.push("التاريخ مطلوب");
   const lines = inv.lines.filter(l => l.item || l.acc || Number(l.price));
-  if (!lines.length) e.push("المستند بدون سطور");
+  if (!lines.length) e.push("المستند من غير سطور");
   const tk = ar ? "OUTPUT" : "INPUT";
   lines.forEach((l, i) => {
-    if (!rec("account", l.acc)) e.push(`سطر ${i + 1}: اختر الحساب`);
-    if (r2((+l.qty || 0) * (+l.price || 0)) <= 0) e.push(`سطر ${i + 1}: المبلغ لازم يكون موجب (المرتجع يتعمل إشعار دائن)`);
-    const t = rec("taxCode", l.tax); if (t && t.kind !== tk) e.push(`سطر ${i + 1}: كود الضريبة ${t.code} غير مناسب`);
+    if (!rec("account", l.acc)) e.push(`سطر ${i + 1}: اختار الحساب`);
+    if (r2((+l.qty || 0) * (+l.price || 0)) <= 0) e.push(`سطر ${i + 1}: المبلغ لازم يكون موجب (المرتجع بيتعمل إشعار دائن)`);
+    const t = rec("taxCode", l.tax); if (t && t.kind !== tk) e.push(`سطر ${i + 1}: كود الضريبة ${t.code} مش مناسب للمستند ده`);
   });
   if (inv.cn && inv.original) {
     const o = DB[key].find(x => x.id === inv.original);
-    if (!o || o.status !== "POSTED" || o.cn || o.party !== inv.party) e.push("الفاتورة الأصلية غير صالحة لهذا الإشعار");
+    if (!o || o.status !== "POSTED" || o.cn || o.party !== inv.party) e.push("الفاتورة الأصلية مش صالحة للإشعار ده");
   }
   if (e.length) throw new Error(e.join("\n"));
   const ctrl = controlAccount(ar, party);
@@ -572,9 +625,9 @@ function postInvoice(kind, inv) {
   });
   total = r2(total);
   if (ar && !inv.cn && Number(party.creditLimit) > 0 && partyBalance("cust", party.id) + total > Number(party.creditLimit))
-    throw new Error(`تجاوز حد الائتمان للعميل ${party.code} (الرصيد ${fmt(partyBalance("cust", party.id))} + ${fmt(total)} > ${fmt(party.creditLimit)})`);
+    throw new Error(`العميل ${party.code} هيعدّي حد الائتمان (الرصيد ${fmt(partyBalance("cust", party.id))} + ${fmt(total)} > ${fmt(party.creditLimit)})`);
   jl.push(L(ctrl, total * flow, ar ? {cust: party.id} : {vend: party.id}));
-  const j = {id: uid(), date: inv.date, type: ar ? "AR" : "AP", desc: `${inv.cn ? "إشعار دائن" : "فاتورة"} ${party.name}`, status: "DRAFT", lines: jl.filter(Boolean)};
+  const j = {id: uid(), date: inv.date, type: ar ? "AR" : "AP", desc: `${inv.cn ? "إشعار دائن" : "فاتورة"} ${party.name}${inv.ticket ? " — " + inv.ticket : ""}`, status: "DRAFT", lines: jl.filter(Boolean)};
   const v = validateJournal(j); if (v.errs.length) throw new Error(v.errs.join("\n"));
   postJournal(j);
   const term = rec("payTerm", party.payTerm);
@@ -592,23 +645,22 @@ function jBadge(j) {
 function renderJournals() {
   const rows = [...DB.journal].sort((a, b) => (b.date || "").localeCompare(a.date || "") || String(b.number || "").localeCompare(String(a.number || "")));
   mainEl.innerHTML = `<div class="bar"><h2>القيود اليومية</h2><button class="pri" id="add">+ قيد جديد</button></div>
+  ${helpBox("كل الحركات المالية. القيود اللي بتيجي من الفواتير والسندات بتتعمل لوحدها. قيد العكس متاح للقيود العامة بس؛ المستندات بتتصحح بإشعار دائن.")}
   <div class="tbl"><table><thead><tr><th>الرقم</th><th>التاريخ</th><th>النوع</th><th>البيان</th><th class="num">الإجمالي</th><th>الحالة</th><th></th></tr></thead><tbody>
-  ${rows.map(j => `<tr><td>${esc(j.number || "—")}</td><td>${esc(j.date)}</td><td>${JT[j.type] || esc(j.type)}</td><td>${esc(j.desc || "")}</td>
+  ${rows.map(j => `<tr class="click" data-open="${j.id}"><td>${esc(j.number || "—")}</td><td>${esc(j.date)}</td><td>${JT[j.type] || esc(j.type)}</td><td>${esc(j.desc || "")}</td>
     <td class="num">${fmt(sum(j.lines, "dr"))}</td><td>${jBadge(j)}</td>
-    <td><button class="sm" data-open="${j.id}">${j.status === "POSTED" ? "عرض" : "تعديل"}</button>
-    ${j.status === "DRAFT" ? ` <button class="sm danger" data-del="${j.id}">حذف</button>` : ""}
-    ${j.status === "POSTED" && j.type === "GENERAL" && !j.reversedBy ? ` <button class="sm" data-rev="${j.id}">عكس</button>` : ""}</td></tr>`).join("")
-    || '<tr><td colspan="7" class="muted">لا توجد قيود</td></tr>'}</tbody></table></div>
-  <p class="muted">قيود المستندات (فواتير، سندات) تتصحح بإشعار دائن مش بعكس القيد.</p>`;
+    <td>${j.status === "DRAFT" ? `<button class="sm danger" data-del="${j.id}">حذف</button>` : ""}
+    ${j.status === "POSTED" && j.type === "GENERAL" && !j.reversedBy ? `<button class="sm" data-rev="${j.id}">عكس</button>` : ""}</td></tr>`).join("")
+    || '<tr><td colspan="7"><div class="empty">لسه مفيش قيود.</div></td></tr>'}</tbody></table></div>`;
   mainEl.onclick = e => {
-    const b = e.target.closest("button"); if (!b) return;
+    const b = e.target.closest("button");
+    if (!b) { const tr = e.target.closest("tr[data-open]"); if (tr) openJournal(tr.dataset.open); return; }
     if (b.id === "add") return openJournal();
-    const {open, del, rev} = b.dataset;
-    if (open) openJournal(open);
+    const {del, rev} = b.dataset;
     if (del && confirm("حذف المسودة؟")) { DB.journal = DB.journal.filter(x => x.id !== del); persist(); route("journal"); }
     if (rev) {
       const d = prompt("تاريخ قيد العكس (YYYY-MM-DD):", today()); if (!d) return;
-      try { reverseJournal(DB.journal.find(x => x.id === rev), d); persist(); toast("تم العكس"); route("journal"); }
+      try { withRollback(() => reverseJournal(DB.journal.find(x => x.id === rev), d)); persist(); toast("تم العكس ✓"); route("journal"); }
       catch (err) { alert(err.message); }
     }
   };
@@ -628,13 +680,13 @@ function openJournal(id) {
   const tot = () => {
     const d = sum(j.lines, "dr"), c = sum(j.lines, "cr");
     $("#tdr").textContent = fmt(d); $("#tcr").textContent = fmt(c);
-    $("#tdiff").innerHTML = r2(d - c) ? `<span class="bad">فرق ${fmt(d - c)}</span>` : '<span class="ok">متوازن</span>';
+    $("#tdiff").innerHTML = r2(d - c) ? `<span class="bad">فرق ${fmt(d - c)}</span>` : '<span class="ok">✓ متوازن</span>';
   };
   const commit = () => { const i = DB.journal.findIndex(x => x.id === j.id); if (i >= 0) DB.journal[i] = j; else DB.journal.push(j); };
   const draw = () => {
     showModal(`<h3>${ro ? "قيد " + esc(j.number) : "قيد يومية"}</h3>
     <div class="grid"><label><span class="req">التاريخ</span><input type="date" id="jd" value="${esc(j.date)}"${dis}></label>
-    <label style="grid-column:span 2">البيان<input id="jdesc" value="${esc(j.desc)}"${dis}></label>
+    <label style="grid-column:span 2">البيان<input id="jdesc" value="${esc(j.desc)}"${dis} placeholder="وصف القيد"></label>
     <label>النوع<input value="${JT[j.type] || j.type}" disabled></label></div>
     <div class="tbl" style="margin-top:12px"><table class="lines"><thead><tr><th>الحساب</th><th class="num">مدين</th><th class="num">دائن</th><th>البُعد</th><th>عميل</th><th>مورد</th><th>ملاحظة</th><th></th></tr></thead><tbody>
     ${j.lines.map((l, i) => `<tr data-i="${i}">
@@ -658,8 +710,7 @@ function openJournal(id) {
       else if (b.dataset.rm !== undefined) { sync(); j.lines.splice(+b.dataset.rm, 1); draw(); }
       else if (b.id === "jsave") { sync(); commit(); persist(); closeModal(); toast("تم حفظ المسودة"); route("journal"); }
       else if (b.id === "jpost") {
-        sync();
-        const v = validateJournal(j);
+        sync(); const v = validateJournal(j);
         if (v.errs.length) { $("#ferr").innerHTML = `<div class="err">${esc(v.errs.join("\n"))}</div>`; return; }
         commit(); postJournal(j); persist(); closeModal(); toast("تم الترحيل " + j.number); route("journal");
       }
@@ -672,17 +723,24 @@ function openJournal(id) {
 function renderInvoices(kind) {
   const ar = kind === "AR", key = ar ? "arInv" : "apInv", pEnt = ar ? "customer" : "vendor";
   const rows = [...DB[key]].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  mainEl.innerHTML = `<div class="bar"><h2>${ar ? "فواتير العملاء" : "فواتير الموردين"}</h2><button class="pri" id="add">+ مستند جديد</button></div>
-  <div class="tbl"><table><thead><tr><th>الرقم</th><th>التاريخ</th><th>${ar ? "العميل" : "المورد"}</th><th>النوع</th><th class="num">الصافي</th><th class="num">الضريبة</th><th class="num">الإجمالي</th><th>الاستحقاق</th><th>القيد</th><th>الحالة</th><th></th></tr></thead><tbody>
-  ${rows.map(inv => { const t = invTotals(inv); return `<tr><td>${esc(inv.number || "—")}</td><td>${esc(inv.date)}</td><td>${esc(refLabel(pEnt, inv.party))}</td>
-    <td>${inv.cn ? "إشعار دائن" : "فاتورة"}</td><td class="num">${fmt(t.net)}</td><td class="num">${fmt(t.tax)}</td><td class="num">${fmt(t.total)}</td>
-    <td>${esc(inv.due || "")}</td><td>${esc(inv.jv || "")}</td><td>${statusBadge(inv.status)}</td>
-    <td><button class="sm" data-open="${inv.id}">${inv.status === "POSTED" ? "عرض" : "تعديل"}</button>${inv.status === "DRAFT" ? ` <button class="sm danger" data-del="${inv.id}">حذف</button>` : ""}</td></tr>`; }).join("")
-    || '<tr><td colspan="11" class="muted">لا توجد مستندات</td></tr>'}</tbody></table></div>`;
+  mainEl.innerHTML = `<div class="bar"><h2>${ar ? "فواتير العملاء" : "فواتير الموردين"}</h2><input id="q" placeholder="🔍 رقم / ${ar ? "عميل" : "مورد"} / تذكرة" style="max-width:240px"><button class="pri" id="add">+ مستند جديد</button></div>
+  ${helpBox(ar ? "فواتير البيع والإشعارات الدائنة. فواتير التذاكر بتتعمل لوحدها من شاشة استيراد التذاكر." : "فواتير الشراء من الموردين وشركات الطيران. فواتير التذاكر بتتعمل لوحدها من شاشة استيراد التذاكر.")}
+  <div class="tbl"><table><thead><tr><th>الرقم</th><th>التاريخ</th><th>${ar ? "العميل" : "المورد"}</th><th>المرجع</th><th>النوع</th><th class="num">الصافي</th><th class="num">الضريبة</th><th class="num">الإجمالي</th><th>الاستحقاق</th><th>الحالة</th><th></th></tr></thead><tbody id="tb"></tbody></table></div><p class="muted" id="cnt"></p>`;
+  const draw = () => {
+    const q = $("#q").value.trim().toLowerCase();
+    const list = rows.filter(inv => !q || [inv.number, refLabel(pEnt, inv.party), inv.ticket, inv.ref].some(v => String(v || "").toLowerCase().includes(q)));
+    $("#tb").innerHTML = list.slice(0, 500).map(inv => { const t = invTotals(inv); return `<tr class="click" data-open="${inv.id}"><td>${esc(inv.number || "—")}</td><td>${esc(inv.date)}</td><td>${esc(refLabel(pEnt, inv.party))}</td><td>${esc(inv.ticket || inv.ref || "")}</td>
+      <td>${inv.cn ? "إشعار دائن" : "فاتورة"}</td><td class="num">${fmt(t.net)}</td><td class="num">${fmt(t.tax)}</td><td class="num">${fmt(t.total)}</td>
+      <td>${esc(inv.due || "")}</td><td>${statusBadge(inv.status)}</td>
+      <td>${inv.status === "DRAFT" ? `<button class="sm danger" data-del="${inv.id}">حذف</button>` : ""}</td></tr>`; }).join("")
+      || `<tr><td colspan="11"><div class="empty">${rows.length ? "مفيش نتائج" : "لسه مفيش مستندات."}</div></td></tr>`;
+    $("#cnt").textContent = `${list.length} مستند${list.length > 500 ? " (معروض أول 500)" : ""}`;
+  };
+  $("#q").oninput = draw; draw();
   mainEl.onclick = e => {
-    const b = e.target.closest("button"); if (!b) return;
+    const b = e.target.closest("button");
+    if (!b) { const tr = e.target.closest("tr[data-open]"); if (tr) openInvoice(kind, tr.dataset.open); return; }
     if (b.id === "add") return openInvoice(kind);
-    if (b.dataset.open) openInvoice(kind, b.dataset.open);
     if (b.dataset.del && confirm("حذف المسودة؟")) { DB[key] = DB[key].filter(x => x.id !== b.dataset.del); persist(); route(key); }
   };
 }
@@ -703,16 +761,13 @@ function openInvoice(kind, id) {
   const calc = () => {
     modalEl.querySelectorAll("tbody tr[data-i]").forEach(tr => {
       const l = inv.lines[+tr.dataset.i], n = r2((+l.qty || 0) * (+l.price || 0)), t = rec("taxCode", l.tax), tx = t ? r2(n * t.rate / 100) : 0;
-      tr.querySelector('[data-c="n"]').textContent = fmt(n);
-      tr.querySelector('[data-c="t"]').textContent = fmt(tx);
-      tr.querySelector('[data-c="g"]').textContent = fmt(n + tx);
+      tr.querySelector('[data-c="n"]').textContent = fmt(n); tr.querySelector('[data-c="t"]').textContent = fmt(tx); tr.querySelector('[data-c="g"]').textContent = fmt(n + tx);
     });
-    const t = invTotals(inv);
-    $("#sn").textContent = fmt(t.net); $("#st").textContent = fmt(t.tax); $("#sg").textContent = fmt(t.total);
+    const t = invTotals(inv); $("#sn").textContent = fmt(t.net); $("#st").textContent = fmt(t.tax); $("#sg").textContent = fmt(t.total);
   };
   const commit = () => { const i = DB[key].findIndex(x => x.id === inv.id); if (i >= 0) DB[key][i] = inv; else DB[key].push(inv); };
   const draw = () => {
-    showModal(`<h3>${ar ? "فاتورة عميل" : "فاتورة مورد"} ${esc(inv.number || "")}</h3>
+    showModal(`<h3>${ar ? "فاتورة عميل" : "فاتورة مورد"} ${esc(inv.number || "")} ${inv.ticket ? `<span class="muted" style="font-size:13px">— تذكرة ${esc(inv.ticket)}</span>` : ""}</h3>
     <div class="grid">
       <label><span class="req">${ar ? "العميل" : "المورد"}</span><select id="ip"${dis}>${optList(pEnt, inv.party, x => !x.blocked)}</select></label>
       <label><span class="req">التاريخ</span><input type="date" id="idt" value="${esc(inv.date)}"${dis}></label>
@@ -732,6 +787,7 @@ function openInvoice(kind, id) {
       <td class="num" data-c="n"></td><td class="num" data-c="t"></td><td class="num" data-c="g"></td>
       <td>${ro ? "" : `<button class="sm danger" data-rm="${i}">×</button>`}</td></tr>`).join("")}</tbody>
     <tfoot><tr class="tot"><td colspan="6">الإجمالي</td><td class="num" id="sn"></td><td class="num" id="st"></td><td class="num" id="sg"></td><td></td></tr></tfoot></table></div>
+    ${ro ? "" : '<p class="muted" style="margin:6px 0 0">💡 اختار الخدمة الأول، والحساب والضريبة هيتملوا لوحدهم.</p>'}
     <label style="display:block;margin-top:10px" class="muted">ملاحظات<textarea id="inotes" rows="2"${dis}>${esc(inv.notes || "")}</textarea></label>
     <div id="ferr"></div>
     <div class="bar" style="margin-top:12px">${ro ? "" : '<button id="addl">+ سطر</button>'}<span style="margin-inline-end:auto"></span>
@@ -740,8 +796,7 @@ function openInvoice(kind, id) {
     modalEl.oninput = () => { sync(); calc(); };
     modalEl.onchange = e => {
       if (e.target.dataset.f !== "item") return;
-      sync();
-      const l = inv.lines[+e.target.closest("tr").dataset.i], it = rec("item", l.item);
+      sync(); const l = inv.lines[+e.target.closest("tr").dataset.i], it = rec("item", l.item);
       if (it) { l.acc = (ar ? it.revAccount : (it.costAccount || it.revAccount)) || l.acc; l.tax = (ar ? it.outTax : it.inTax) || l.tax; if (!l.desc) l.desc = it.name; }
       draw();
     };
@@ -752,43 +807,387 @@ function openInvoice(kind, id) {
       else if (b.id === "isave") { sync(); commit(); persist(); closeModal(); toast("تم حفظ المسودة"); route(key); }
       else if (b.id === "ipost") {
         sync();
-        try { postInvoice(kind, inv); }
+        try { withRollback(() => { postInvoice(kind, inv); commit(); }); }
         catch (err) { $("#ferr").innerHTML = `<div class="err">${esc(err.message)}</div>`; return; }
-        commit(); persist(); closeModal(); toast("تم الترحيل " + inv.number); route(key);
+        persist(); closeModal(); toast("تم الترحيل " + inv.number); route(key);
       }
     };
   };
   draw();
 }
 
-/* =================== Reports =================== */
-function rangeBar() {
-  return `<label>من <input type="date" id="rf" value="${RANGE.from}"></label><label>إلى <input type="date" id="rt" value="${RANGE.to}"></label>`;
+/* =================== FLIGHTS: import, validate, post =================== */
+const FMAP = [
+  ["ticket","رقم التذكرة",1,["ticket number","ticket no.","ticket no","ticket"]],
+  ["ticketStatus","حالة التذكرة",0,["ticket status"]],
+  ["pnr","PNR",0,["pnr no.","pnr"]],
+  ["action","نوع الإجراء (Book/Modify/Refund/Void)",0,["action type","action"]],
+  ["txType","نوع المعاملة (Sale/Adjustment/Refund)",0,["transaction type"]],
+  ["status","حالة الحجز (Paid/Confirmed/...)",0,["status","booking status"]],
+  ["originalIssue","إصدار أصلي؟ (Yes/No)",0,["original issue"]],
+  ["originalTicket","رقم التذكرة الأصلية",0,["original ticket","original ticket no","original ticket number"]],
+  ["customerCode","كود العميل",1,["customer id","customer code","customer account"]],
+  ["customerName","اسم العميل",0,["customer name"]],
+  ["airlineCode","كود شركة الطيران",0,["airline code","carrier","validating carrier"]],
+  ["airlineNum","الرقم الرقمي للطيران",0,["airline no.","airline no","airline number"]],
+  ["issueDate","تاريخ الإصدار",1,["ticket issue date","issue date","issued date"]],
+  ["origin","من (مدينة/مطار)",0,["origin city","origin"]],
+  ["destination","إلى (مدينة/مطار)",0,["destination city","destination"]],
+  ["routing","خط السير (RUH/JED)",0,["routing","route","sector","itinerary"]],
+  ["taxRegion","كود المنطقة الضريبية",0,["tax region"]],
+  ["currency","العملة",0,["currency"]],
+  ["fare","Fare (السعر الأساسي)",1,["base fare","fare","net fare","original fare"]],
+  ["tax","إجمالي الضرائب",0,["total tax","tax","taxes","tax amount"]],
+  ["taxBreakdown","تفصيل الضرائب (YQ=..,K7=..)",0,["tax breakdown","tax details","taxes breakdown"]],
+  ["selling","سعر البيع في الملف",0,["selling","selling price","total selling","accepted or paid","total amount"]],
+  ["commission","عمولة STD",0,["std commission","commission"]],
+  ["payCategory","فئة الدفع (CASH/CC/IN/GO)",0,["payment category","pay type","payment type"]],
+  ["passenger","اسم الراكب",0,["passenger name","passenger"]],
+];
+const RULES = {
+  R1:"بيع جديد", R2:"إعادة إصدار — محتاج ربط بالتذكرة الأصلية", R3:"تعديل — محتاج تأكيد: المبلغ فرق ولا كامل؟",
+  R4:"تعديل ملغي — مش هيترحّل", R5:"Void — مش هيترحّل", R6:"استرداد (إشعار دائن)", R7:"الحجز حالته Refunded — مستني سطر الاسترداد",
+  R8:"لسه قيد المعالجة — مستني السداد", R5P:"Void لتذكرة مترحّلة — اعمل إشعار دائن يدوي",
+};
+const STATE_LBL = {READY:["جاهز","ready"], ERROR:["فيه أخطاء","error"], HOLD:["معلّق","hold"], SKIP:["متجاهل","skip"], POSTED:["مرحّل","posted"]};
+const stBadge = s => { const x = STATE_LBL[s] || [s, "skip"]; return `<span class="badge b-${x[1]}">${x[0]}</span>`; };
+let FLT_FILTER = "ALL";
+
+function parseTaxes(s) {
+  const o = {};
+  String(s || "").split(/[,;\s]+/).forEach(p => { const m = p.match(/^([A-Z0-9]{2})=(-?\d+(?:\.\d+)?)$/i); if (m) { const k = m[1].toUpperCase(); o[k] = r2((o[k] || 0) + Number(m[2])); } });
+  return o;
 }
+function airportResolve(token) {
+  const t = up(token); if (!t) return null;
+  return DB.airport.find(a => up(a.code) === t || up(a.name) === t || up(a.city) === t ||
+    String(a.aliases || "").split(",").map(up).includes(t)) || null;
+}
+function legsOf(m) { return String(m.routing || "").split(/\/+/).map(s => s.trim()).filter(Boolean); }
+function routeText(m) { return m.routing || [m.origin, m.destination].filter(Boolean).join(" → "); }
+function domesticOf(m) {
+  const tb = parseTaxes(m.taxBreakdown);
+  if (tb.K7 > 0) return {dom: true, why: "فيها ضريبة K7 السعودية"};
+  const legs = legsOf(m);
+  if (legs.length) {
+    const aps = legs.map(airportResolve);
+    if (aps.some(a => a && a.country !== "SA")) return {dom: false, why: "خط السير فيه مطار خارج المملكة"};
+    if (aps.every(a => a && a.country === "SA")) return {dom: true, why: "كل مطارات خط السير داخل المملكة"};
+  }
+  if (m.taxRegion) {
+    const r = byCode("taxRegion", m.taxRegion);
+    if (r) return {dom: r.scope === "DOM", why: `كود المنطقة الضريبية ${r.code}`};
+  }
+  const o = airportResolve(m.origin), d = airportResolve(m.destination);
+  if ((o && o.country !== "SA") || (d && d.country !== "SA")) return {dom: false, why: "مطار الإقلاع أو الوصول خارج المملكة"};
+  if (o && d && o.id !== d.id) return {dom: true, why: "مطاري الإقلاع والوصول داخل المملكة"};
+  return {dom: null, why: ""};
+}
+function findAirline(m) {
+  return byCode("airline", m.airlineCode) ||
+    (m.airlineNum ? DB.airline.find(a => a.num === String(m.airlineNum).replace(/\D/g, "").padStart(3, "0").slice(0, 3)) : null) || null;
+}
+function regionFor(dom) { return DB.taxRegion.find(r => r.scope === (dom ? "DOM" : "INTL")); }
+function findContract(cust, date) {
+  return DB.sfContract.find(c => c.customer === cust.id && c.from <= date && (!c.to || c.to >= date));
+}
+function routeTicket(t) {
+  const m = t.m, lc = v => String(v || "").trim().toLowerCase();
+  const ts = lc(m.ticketStatus), act = lc(m.action), tx = lc(m.txType), st = lc(m.status), orig = lc(m.originalIssue);
+  if (ts === "void" || act === "void" || tx === "void") {
+    const posted = DB.ticket.some(x => x.id !== t.id && x.m.ticket === m.ticket && x.rule === "R1" && x.state === "POSTED");
+    return posted ? {rule: "R5", state: "HOLD", text: RULES.R5P} : {rule: "R5", state: "SKIP", text: RULES.R5};
+  }
+  if (tx === "refund" || act === "refund") return {rule: "R6", state: "CHECK", text: RULES.R6};
+  if (tx === "adjustment" || act === "modify") {
+    if (/void|cancel/.test(st)) return {rule: "R4", state: "SKIP", text: RULES.R4};
+    return {rule: "R3", state: "HOLD", text: RULES.R3};
+  }
+  if (st === "processing") return {rule: "R8", state: "HOLD", text: RULES.R8};
+  if (st === "refunded") return {rule: "R7", state: "HOLD", text: RULES.R7};
+  if (orig === "no") return {rule: "R2", state: "HOLD", text: RULES.R2};
+  return {rule: "R1", state: "CHECK", text: RULES.R1};
+}
+function calcTicket(t, dom, cust) {
+  const m = t.m, fare = num(m.fare) || 0, tax = num(m.tax) || 0, tb = parseTaxes(m.taxBreakdown), reg = regionFor(dom);
+  const outT = rec("taxCode", reg.outTax), inT = rec("taxCode", reg.inTax), sfT = rec("taxCode", reg.sfTax || reg.outTax);
+  let k7 = 0, estK7 = false;
+  if (dom) { if (tb.K7) k7 = tb.K7; else { k7 = r2((fare + tax) * (outT.rate / 100) / (1 + outT.rate / 100)); estK7 = true; } }
+  const base = r2(fare + tax - k7);
+  let sf = 0, contract = null;
+  if (t.rule === "R1" && cust) {
+    contract = findContract(cust, m.issueDate);
+    if (contract) {
+      const v = Number(contract.value) || 0;
+      sf = contract.basis === "FLAT" ? v : contract.basis === "COST" ? base * v / 100 : (fare + tax) * v / 100;
+      sf = Math.max(sf, Number(contract.min) || 0);
+      if (contract.vatIncl) sf = sf / (1 + sfT.rate / 100);
+      sf = r2(sf);
+    }
+  }
+  const ticketVat = r2(base * outT.rate / 100), sfVat = r2(sf * sfT.rate / 100);
+  const selling = r2(base + ticketVat + sf + sfVat), fileSelling = num(m.selling);
+  return {dom, fare, tax, k7, estK7, base, ticketVat, sf, sfVat, selling, fileSelling,
+    diff: fileSelling == null ? null : r2(fileSelling - selling), comm: r2(num(m.commission) || 0),
+    inVat: r2(base * inT.rate / 100), contract: contract ? refLabel("sfContract", contract.id) : ""};
+}
+function processTicket(t) {
+  if (t.state === "POSTED") return t;
+  const m = t.m; t.errs = []; t.warns = []; t.calc = null;
+  const r = routeTicket(t); t.rule = r.rule; t.ruleText = r.text;
+  if (r.state === "SKIP" || r.state === "HOLD") { t.state = r.state; return t; }
+  const E = (code, msg) => t.errs.push(`${code}: ${msg}`), W = (code, msg) => t.warns.push(`${code}: ${msg}`);
+  if (!m.ticket) E("V00", "رقم التذكرة ناقص");
+  if (!m.issueDate) E("V00", "تاريخ الإصدار ناقص أو صيغته غلط");
+  const d = domesticOf(m); t.domWhy = d.why;
+  if (d.dom === null) E("V01", "مش عارف أحدد محلي ولا دولي. ضيف المطار في «المطارات» أو كود المنطقة في «المناطق الضريبية»");
+  if (m.currency && !byCode("currency", m.currency)) E("V02", `العملة "${m.currency}" مش معرّفة`);
+  const cust = byCode("customer", m.customerCode);
+  if (!m.customerCode) E("V03", "كود العميل ناقص");
+  else if (!cust) E("V03", `العميل بكود "${m.customerCode}" مش موجود في العملاء${m.customerName ? " (" + m.customerName + ")" : ""}`);
+  else if (cust.blocked) E("V03", `العميل ${cust.code} موقوف`);
+  if (/test|;p1/i.test(`${m.customerName || ""} ${m.customerCode || ""}`)) E("V04", "سجل اختبار — مش هيترحّل");
+  const fare = num(m.fare), tax = num(m.tax) || 0;
+  if (fare == null || fare <= 0) E("V06", "الـ Fare ناقص أو صفر");
+  const fs = num(m.selling);
+  if (fs != null && fare > 0 && fs > 3 * (fare + tax)) E("V05", `سعر البيع في الملف (${fmt(fs)}) أكبر من 3 أضعاف السعر (${fmt(fare + tax)}) — رقم شاذ`);
+  const dup = DB.ticket.some(x => x.id !== t.id && x.m.ticket === m.ticket && x.rule === t.rule &&
+    (x.state === "POSTED" || (x.batch === t.batch && x.rowNo < t.rowNo)));
+  if (m.ticket && dup) E("V07", "التذكرة دي متكررة بنفس نوع العملية");
+  const al = findAirline(m);
+  if (!al) E("V08", `شركة الطيران "${m.airlineCode || m.airlineNum || "?"}" مش موجودة في «شركات الطيران»`);
+  else if (!rec("vendor", al.vendor)) E("V08", `شركة الطيران ${al.code} مش مربوطة بمورد`);
+  if (d.dom !== null) {
+    const reg = regionFor(d.dom);
+    if (!reg) E("V01", `مفيش منطقة ضريبية بنطاق ${d.dom ? "محلي" : "دولي"}`);
+    else if (fare > 0) {
+      t.calc = calcTicket(t, d.dom, cust);
+      if (t.calc.estK7) W("V10", "مفيش K7 في الملف — ضريبة المدخلات اتحسبت تقديري 15/115");
+      if (t.calc.diff != null && Math.abs(t.calc.diff) > 1) W("REC", `فرق ${fmt(t.calc.diff)} بين سعر البيع في الملف والمحسوب`);
+    }
+  }
+  t.state = t.errs.length ? "ERROR" : "READY";
+  return t;
+}
+function postTicket(id) {
+  try {
+    withRollback(() => {
+      const t = DB.ticket.find(x => x.id === id);
+      if (!t || t.state !== "READY") throw new Error("التذكرة مش جاهزة");
+      const m = t.m, c = t.calc, cust = byCode("customer", m.customerCode), al = findAirline(m), reg = regionFor(c.dom), cfg = DB.settings.flight;
+      const tkt = byCode("item", c.dom ? cfg.tktDom : cfg.tktIntl), sfI = byCode("item", c.dom ? cfg.sfDom : cfg.sfIntl);
+      if (!tkt) throw new Error(`صنف التذكرة "${c.dom ? cfg.tktDom : cfg.tktIntl}" مش موجود (إعدادات الطيران)`);
+      const cn = t.rule === "R6", date = m.issueDate, desc = `${m.ticket} ${routeText(m)}`;
+      const so = {id: uid(), date, party: cust.id, cn, original: "", ref: "", notes: m.passenger || "", ticket: m.ticket, status: "DRAFT",
+        lines: [{item: tkt.id, desc: "تذكرة " + desc, acc: tkt.revAccount, qty: 1, price: c.base, tax: reg.outTax}]};
+      if (c.sf > 0) {
+        if (!sfI) throw new Error("صنف رسوم الخدمة مش موجود (إعدادات الطيران)");
+        so.lines.push({item: sfI.id, desc: "رسوم خدمة " + m.ticket, acc: sfI.revAccount, qty: 1, price: c.sf, tax: reg.sfTax || reg.outTax});
+      }
+      if (cn) { const o = DB.arInv.find(x => x.ticket === m.ticket && x.status === "POSTED" && !x.cn && x.party === cust.id); if (o) so.original = o.id; }
+      postInvoice("AR", so); DB.arInv.push(so);
+      const po = {id: uid(), date, party: al.vendor, cn, original: "", ref: m.ticket, notes: "", ticket: m.ticket, status: "DRAFT",
+        lines: [{item: tkt.id, desc: "تكلفة تذكرة " + desc, acc: tkt.costAccount || tkt.revAccount, qty: 1, price: c.base, tax: reg.inTax}]};
+      if (cn) { const o = DB.apInv.find(x => x.ticket === m.ticket && x.status === "POSTED" && !x.cn && x.party === al.vendor); if (o) po.original = o.id; }
+      postInvoice("AP", po); DB.apInv.push(po);
+      let jvC = "";
+      if (c.comm > 0) {
+        const vend = rec("vendor", al.vendor), acc = byCode("account", cfg.commAcc);
+        if (!acc) throw new Error(`حساب العمولة "${cfg.commAcc}" مش موجود (إعدادات الطيران)`);
+        const sg = cn ? -1 : 1;
+        const j = {id: uid(), date, type: "AP", desc: `عمولة STD ${m.ticket}`, status: "DRAFT",
+          lines: [L(controlAccount(false, vend), c.comm * sg, {vend: vend.id}), L(acc.id, -c.comm * sg)]};
+        const v = validateJournal(j); if (v.errs.length) throw new Error(v.errs.join("\n"));
+        postJournal(j); jvC = j.number;
+      }
+      Object.assign(t, {so: so.number, po: po.number, jvComm: jvC, state: "POSTED", postedAt: new Date().toISOString()});
+    });
+    return null;
+  } catch (e) {
+    const t = DB.ticket.find(x => x.id === id);
+    if (t) { t.state = "ERROR"; t.errs = [...(t.errs || []), "ترحيل: " + e.message]; }
+    return e.message;
+  }
+}
+
+function readSheet(name, buf) {
+  if (/\.csv$/i.test(name) || /\.txt$/i.test(name)) return parseCSV(new TextDecoder("utf-8").decode(buf));
+  if (!window.XLSX) throw new Error("مكتبة قراءة Excel ماتحمّلتش (اتأكد من الإنترنت). أو احفظ الملف CSV وارفعه.");
+  const wb = XLSX.read(buf, {type: "array"}); const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: ""});
+}
+function guessCol(headers, f) {
+  const H = headers.map(h => String(h).trim().toLowerCase()), saved = DB.settings.flightMap[f[0]];
+  if (saved && headers.includes(saved)) return headers.indexOf(saved);
+  for (const g of f[3]) { const i = H.indexOf(g); if (i >= 0) return i; }
+  if (f[0] !== "status" && f[0] !== "tax") for (const g of f[3]) { const i = H.findIndex(h => h.includes(g)); if (i >= 0) return i; }
+  return -1;
+}
+function startImport() {
+  pickFile(".xlsx,.xls,.csv", (buf, name) => {
+    let rows; try { rows = readSheet(name, buf); } catch (e) { return alert(e.message); }
+    rows = rows.filter(r => r.some(v => String(v).trim() !== ""));
+    if (rows.length < 2) return alert("الملف فاضي");
+    const hi = Math.max(0, rows.findIndex(r => r.some(v => /ticket/i.test(String(v)))));
+    openMapping(name, rows[hi].map(h => String(h).trim()), rows.slice(hi + 1));
+  }, true);
+}
+function openMapping(name, headers, data) {
+  const sample = data[0] || [];
+  showModal(`<h3>ربط أعمدة الملف — ${esc(name)}</h3>
+  <div class="help">💡 السيستم خمّن الأعمدة لوحده. راجع الأعمدة اللي عليها <span class="req"></span>، لأنها إجبارية. لو تفصيل الضرائب (YQ=..,K7=..) أو خط السير (RUH/JED) مش موجودين كعمود، السيستم هيدوّر عليهم في الصف لوحده. اختياراتك هتتحفظ للمرة الجاية.<br>
+  عدد الصفوف: <b>${data.length}</b></div>
+  <div class="tbl" style="max-height:55vh"><table><thead><tr><th>الحقل في السيستم</th><th>العمود في الملف</th><th>مثال من أول صف</th></tr></thead><tbody>
+  ${FMAP.map(f => { const gi = guessCol(headers, f); return `<tr><td><span class="${f[2] ? "req" : ""}">${f[1]}</span></td>
+    <td><select data-map="${f[0]}"><option value="-1">— مش موجود —</option>${headers.map((h, i) => `<option value="${i}"${i === gi ? " selected" : ""}>${esc(h || "(عمود " + (i + 1) + ")")}</option>`).join("")}</select></td>
+    <td class="muted" data-sample="${f[0]}">${gi >= 0 ? esc(sample[gi]) : ""}</td></tr>`; }).join("")}
+  </tbody></table></div><div id="ferr"></div>
+  <div class="bar" style="margin-top:14px"><span style="margin-inline-end:auto"></span><button data-close>إلغاء</button><button class="acc" id="mgo">استيراد وفحص</button></div>`);
+  modalEl.onchange = e => { const s = e.target.dataset.map; if (s) modalEl.querySelector(`[data-sample="${s}"]`).textContent = +e.target.value >= 0 ? String(sample[+e.target.value] ?? "") : ""; };
+  $("#mgo").onclick = () => {
+    const map = {}; modalEl.querySelectorAll("[data-map]").forEach(s => map[s.dataset.map] = +s.value);
+    const miss = FMAP.filter(f => f[2] && map[f[0]] < 0).map(f => f[1]);
+    if (miss.length) { $("#ferr").innerHTML = `<div class="err">حقول إجبارية مش مربوطة: ${esc(miss.join("، "))}</div>`; return; }
+    FMAP.forEach(f => DB.settings.flightMap[f[0]] = map[f[0]] >= 0 ? headers[map[f[0]]] : "");
+    const batch = uid(); let n = 0;
+    data.forEach((row, i) => {
+      const m = {};
+      FMAP.forEach(f => { const ix = map[f[0]]; m[f[0]] = ix >= 0 ? row[ix] : ""; });
+      ["ticket","customerCode","airlineCode","currency","taxRegion"].forEach(k => m[k] = String(m[k] ?? "").trim());
+      m.issueDate = normDate(m.issueDate);
+      if (!m.taxBreakdown) m.taxBreakdown = row.find(v => /^[A-Z0-9]{2}=\d/i.test(String(v))) || "";
+      if (!m.routing) m.routing = row.find(v => /^[A-Z]{3}(\/{1,2}[A-Z]{3})+$/.test(String(v).trim())) || "";
+      m.routing = String(m.routing || "").trim();
+      if (!m.ticket && !m.fare) return;
+      const t = {id: uid(), batch, file: name, rowNo: i + 1, m, state: "NEW"};
+      DB.ticket.push(t); processTicket(t); n++;
+    });
+    persist(); closeModal(); FLT_FILTER = "ALL"; route("flights");
+    const c = s => DB.ticket.filter(t => t.batch === batch && t.state === s).length;
+    toast(`اتستورد ${n} صف: ${c("READY")} جاهز، ${c("ERROR")} فيه أخطاء، ${c("HOLD")} معلّق`);
+  };
+}
+function renderFlights() {
+  const all = DB.ticket, cnt = s => all.filter(t => t.state === s).length;
+  const chips = [["ALL","الكل",all.length],["READY","جاهز",cnt("READY")],["ERROR","فيه أخطاء",cnt("ERROR")],["HOLD","معلّق",cnt("HOLD")],["SKIP","متجاهل",cnt("SKIP")],["POSTED","مرحّل",cnt("POSTED")]];
+  mainEl.innerHTML = `<div class="bar"><h2>✈️ استيراد التذاكر</h2>
+    <input id="q" placeholder="🔍 تذكرة / عميل / PNR" style="max-width:220px">
+    <button id="recheck" title="بعد ما تصلّح الـ master data">🔄 إعادة الفحص</button>
+    <button id="errcsv">⬇ تصدير الأخطاء</button>
+    <button class="danger" id="clear">🗑 حذف غير المرحّل</button>
+    <button class="pri" id="imp">⬆ استيراد ملف</button>
+    <button class="acc" id="postall"${cnt("READY") ? "" : " disabled"}>✓ ترحيل الجاهز (${cnt("READY")})</button></div>
+  ${helpBox("ارفع ملف التذاكر (Excel أو CSV). السيستم بيفحص كل تذكرة، ويحدد محلي ولا دولي، ويحسب رسوم الخدمة والضريبة. لما تضغط ترحيل، كل تذكرة جاهزة بتطلع فاتورة عميل وفاتورة مورد وقيد عمولة. لو فيه أخطاء، صلّح الـ master data (العملاء، المطارات، شركات الطيران) واضغط «إعادة الفحص».")}
+  <div class="chips">${chips.map(([k, l, n]) => `<button data-f="${k}" class="${FLT_FILTER === k ? "on" : ""}">${l} (${n})</button>`).join("")}</div>
+  <div class="tbl"><table><thead><tr><th>التذكرة</th><th>التاريخ</th><th>العميل</th><th>الطيران</th><th>خط السير</th><th>النطاق</th><th>القاعدة</th>
+    <th class="num">الأساس</th><th class="num">رسوم الخدمة</th><th class="num">الضريبة</th><th class="num">البيع المحسوب</th><th class="num">فرق الملف</th><th>الحالة</th><th>ملاحظات</th></tr></thead>
+  <tbody id="tb"></tbody></table></div><p class="muted" id="cnt"></p>`;
+  const draw = () => {
+    const q = $("#q").value.trim().toLowerCase();
+    const list = all.filter(t => (FLT_FILTER === "ALL" || t.state === FLT_FILTER) &&
+      (!q || [t.m.ticket, t.m.customerCode, t.m.customerName, t.m.pnr].some(v => String(v || "").toLowerCase().includes(q))));
+    $("#tb").innerHTML = list.slice(0, 500).map(t => {
+      const c = t.calc, cust = byCode("customer", t.m.customerCode);
+      const note = (t.errs || [])[0] || (t.warns || [])[0] || (t.state === "HOLD" || t.state === "SKIP" ? t.ruleText : "") || (t.state === "POSTED" ? `${t.so} / ${t.po}` : "");
+      const more = (t.errs || []).length + (t.warns || []).length > 1 ? ` <span class="muted">(+${(t.errs || []).length + (t.warns || []).length - 1})</span>` : "";
+      return `<tr class="click" data-t="${t.id}"><td>${esc(t.m.ticket)}</td><td>${esc(t.m.issueDate)}</td><td>${esc(cust ? cust.code + " " + cust.name : (t.m.customerCode || "") + " " + (t.m.customerName || ""))}</td>
+        <td>${esc(t.m.airlineCode || t.m.airlineNum)}</td><td>${esc(routeText(t.m))}</td><td>${c ? (c.dom ? "محلي" : "دولي") : ""}</td><td>${esc(t.rule || "")}</td>
+        <td class="num">${c ? fmt(c.base) : ""}</td><td class="num">${c ? fmt(c.sf) : ""}</td><td class="num">${c ? fmt(c.ticketVat + c.sfVat) : ""}</td>
+        <td class="num">${c ? fmt(c.selling) : ""}</td><td class="num ${c && c.diff && Math.abs(c.diff) > 1 ? "bad" : ""}">${c && c.diff != null ? fmt(c.diff) : ""}</td>
+        <td>${stBadge(t.state)}</td><td style="white-space:normal;min-width:220px;font-size:12px" class="${t.errs && t.errs.length ? "bad" : ""}">${esc(note)}${more}</td></tr>`;
+    }).join("") || `<tr><td colspan="14"><div class="empty">${all.length ? "مفيش تذاكر في الفلتر ده" : 'لسه مفيش تذاكر.<br><br><button class="pri" id="imp2">⬆ استيراد ملف التذاكر</button>'}</div></td></tr>`;
+    $("#cnt").textContent = `${list.length} تذكرة${list.length > 500 ? " (معروض أول 500 — استخدم البحث أو الفلتر)" : ""}`;
+  };
+  $("#q").oninput = draw; draw();
+  mainEl.onclick = e => {
+    const b = e.target.closest("button");
+    if (!b) { const tr = e.target.closest("tr[data-t]"); if (tr) openTicket(tr.dataset.t); return; }
+    if (b.dataset.f) { FLT_FILTER = b.dataset.f; return route("flights"); }
+    if (b.id === "imp" || b.id === "imp2") return startImport();
+    if (b.id === "recheck") { DB.ticket.forEach(t => { if (t.state !== "POSTED") processTicket(t); }); persist(); toast("تمت إعادة الفحص"); return route("flights"); }
+    if (b.id === "clear") { if (confirm("حذف كل التذاكر اللي مش مترحّلة؟")) { DB.ticket = DB.ticket.filter(t => t.state === "POSTED"); persist(); route("flights"); } return; }
+    if (b.id === "errcsv") {
+      const rows = DB.ticket.filter(t => t.state === "ERROR" || t.state === "HOLD");
+      return download(`tickets-issues-${today()}.csv`, toCSV([["Ticket","Customer","Rule","State","Issues"], ...rows.map(t => [t.m.ticket, t.m.customerCode, t.rule, t.state, [...(t.errs || []), ...(t.warns || []), t.state === "HOLD" ? t.ruleText : ""].filter(Boolean).join(" | ")])]), "text/csv");
+    }
+    if (b.id === "postall") {
+      const ids = DB.ticket.filter(t => t.state === "READY").map(t => t.id);
+      if (!confirm(`ترحيل ${ids.length} تذكرة؟ كل تذكرة هتطلع فاتورة عميل وفاتورة مورد.`)) return;
+      let ok = 0; const fails = [];
+      ids.forEach(id => { const err = postTicket(id); if (err) fails.push(err); else ok++; });
+      persist(); route("flights");
+      alert(`اترحّل ${ok} تذكرة.` + (fails.length ? `\nفشل ${fails.length} (حالتهم بقت «فيه أخطاء»).\nأول خطأ: ${fails[0]}` : ""));
+    }
+  };
+}
+function openTicket(id) {
+  const t = DB.ticket.find(x => x.id === id), m = t.m, c = t.calc;
+  const kv = rows => `<table class="kv">${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}</table>`;
+  showModal(`<h3>تذكرة ${esc(m.ticket)} ${stBadge(t.state)}</h3>
+  ${(t.errs || []).length ? `<div class="err">${esc(t.errs.join("\n"))}</div>` : ""}
+  ${(t.warns || []).length ? `<div class="warn">${esc(t.warns.join("\n"))}</div>` : ""}
+  <div class="two">
+    <div class="card"><h3>بيانات الملف</h3>${kv(FMAP.filter(f => m[f[0]] !== "" && m[f[0]] != null).map(f => [f[1], esc(m[f[0]])]))}
+      <p class="muted">الملف: ${esc(t.file)} — صف ${t.rowNo}</p></div>
+    <div class="card"><h3>القرار والحساب</h3>${kv([
+      ["القاعدة", `${esc(t.rule || "")} — ${esc(t.ruleText || "")}`],
+      ["النطاق", c ? `${c.dom ? "محلي" : "دولي"} <span class="muted">(${esc(t.domWhy || "")})</span>` : "—"],
+      ...(c ? [["Fare + Tax", fmt(c.fare + c.tax)], ["ضريبة التذكرة K7" + (c.estK7 ? " (تقديري)" : ""), fmt(c.k7)], ["الأساس (بدون K7)", fmt(c.base)],
+        ["رسوم الخدمة", fmt(c.sf) + (c.contract ? ` <span class="muted">(${esc(c.contract)})</span>` : ' <span class="muted">(مفيش عقد)</span>')],
+        ["ضريبة التذكرة + الرسوم", fmt(c.ticketVat + c.sfVat)], ["<b>سعر البيع المحسوب</b>", `<b>${fmt(c.selling)}</b>`],
+        ["سعر البيع في الملف", c.fileSelling == null ? "—" : fmt(c.fileSelling)], ["الفرق", c.diff == null ? "—" : fmt(c.diff)],
+        ["التكلفة للمورد", fmt(c.base + c.inVat)], ["عمولة STD", fmt(c.comm)]] : []),
+      ...(t.state === "POSTED" ? [["فاتورة العميل", esc(t.so)], ["فاتورة المورد", esc(t.po)], ["قيد العمولة", esc(t.jvComm || "—")]] : []),
+    ])}</div>
+  </div>
+  <div class="bar" style="margin-top:6px">${t.state !== "POSTED" ? '<button class="danger" id="tdel">حذف</button>' : ""}<span style="margin-inline-end:auto"></span>
+  <button data-close>إغلاق</button>${t.state !== "POSTED" ? '<button id="tre">🔄 إعادة فحص</button>' : ""}${t.state === "READY" ? '<button class="acc" id="tpost">ترحيل</button>' : ""}</div>`);
+  modalEl.onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.id === "tdel" && confirm("حذف التذكرة دي من الاستيراد؟")) { DB.ticket = DB.ticket.filter(x => x.id !== id); persist(); closeModal(); route("flights"); }
+    if (b.id === "tre") { processTicket(t); persist(); openTicket(id); route("flights"); }
+    if (b.id === "tpost") { const err = postTicket(id); persist(); route("flights"); if (err) openTicket(id); else { closeModal(); toast("تم الترحيل ✓"); } }
+  };
+}
+function renderFlightSettings() {
+  const cfg = DB.settings.flight;
+  const itemSel = (k, l) => `<label>${l}<select data-k="${k}">${DB.item.map(i => `<option value="${esc(i.code)}"${up(i.code) === up(cfg[k]) ? " selected" : ""}>${esc(i.code + " — " + i.name)}</option>`).join("")}</select></label>`;
+  mainEl.innerHTML = `<div class="bar"><h2>إعدادات الطيران</h2></div>
+  ${helpBox("الأصناف والحسابات اللي بتستخدمها التذاكر وقت الترحيل. حسابات الإيراد والتكلفة والضريبة بتيجي من الصنف، والضريبة من المنطقة الضريبية (محلي/دولي).")}
+  <div class="card"><h3>الأصناف والحسابات</h3><div class="grid">
+    ${itemSel("tktDom","صنف التذكرة المحلية")}${itemSel("tktIntl","صنف التذكرة الدولية")}${itemSel("sfDom","صنف رسوم الخدمة — محلي")}${itemSel("sfIntl","صنف رسوم الخدمة — دولي")}
+    <label>حساب إيراد عمولة STD<select data-k="commAcc">${DB.account.filter(a => a.posting).map(a => `<option value="${esc(a.code)}"${a.code === cfg.commAcc ? " selected" : ""}>${esc(a.code + " — " + (a.nameAr || a.name))}</option>`).join("")}</select></label>
+  </div><div class="bar" style="margin-top:14px"><span style="margin-inline-end:auto"></span><button class="pri" id="save">حفظ</button></div></div>
+  <div class="card"><h3>ربط أعمدة الملف المحفوظ</h3>
+    <p class="muted">${FMAP.filter(f => DB.settings.flightMap[f[0]]).map(f => `${f[1]} ← <b>${esc(DB.settings.flightMap[f[0]])}</b>`).join(" · ") || "لسه مفيش ربط محفوظ. هيتحفظ أول ما تستورد ملف."}</p>
+    <button class="danger" id="resetmap">مسح الربط المحفوظ</button></div>
+  <div class="card"><h3>قواعد التوجيه</h3><table>${Object.entries(RULES).filter(([k]) => k !== "R5P").map(([k, v]) => `<tr><td><b>${k}</b></td><td>${v}</td></tr>`).join("")}</table></div>`;
+  mainEl.onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.id === "save") { mainEl.querySelectorAll("[data-k]").forEach(s => cfg[s.dataset.k] = s.value); persist(); toast("تم الحفظ ✓"); }
+    if (b.id === "resetmap" && confirm("مسح الربط المحفوظ؟")) { DB.settings.flightMap = {}; persist(); route("flightSettings"); }
+  };
+}
+
+/* =================== Reports =================== */
+function rangeBar() { return `<label>من <input type="date" id="rf" value="${RANGE.from}"></label><label>إلى <input type="date" id="rt" value="${RANGE.to}"></label>`; }
 function wireRange() {
   $("#rf").onchange = () => { RANGE.from = $("#rf").value; route(current); };
   $("#rt").onchange = () => { RANGE.to = $("#rt").value; route(current); };
 }
 function trialBalance(from, to) {
-  const m = {};
-  const add = (id, k, v) => { const a = m[id] || (m[id] = {op: 0, dr: 0, cr: 0}); a[k] += v; };
-  DB.journal.forEach(j => {
-    if (j.status !== "POSTED" || j.date > to) return;
-    j.lines.forEach(l => { if (j.date < from) add(l.acc, "op", l.dr - l.cr); else { add(l.acc, "dr", l.dr); add(l.acc, "cr", l.cr); } });
-  });
-  return DB.account.filter(a => m[a.id]).sort((a, b) => String(a.code).localeCompare(String(b.code)))
-    .map(a => ({a, ...m[a.id], cl: m[a.id].op + m[a.id].dr - m[a.id].cr}));
+  const m = {}; const add = (id, k, v) => { const a = m[id] || (m[id] = {op: 0, dr: 0, cr: 0}); a[k] += v; };
+  DB.journal.forEach(j => { if (j.status !== "POSTED" || j.date > to) return; j.lines.forEach(l => { if (j.date < from) add(l.acc, "op", l.dr - l.cr); else { add(l.acc, "dr", l.dr); add(l.acc, "cr", l.cr); } }); });
+  return DB.account.filter(a => m[a.id]).sort((a, b) => String(a.code).localeCompare(String(b.code))).map(a => ({a, ...m[a.id], cl: m[a.id].op + m[a.id].dr - m[a.id].cr}));
 }
 function renderTB() {
-  const rows = trialBalance(RANGE.from, RANGE.to);
-  const T = k => rows.reduce((s, r) => s + r[k], 0);
-  mainEl.innerHTML = `<div class="bar"><h2>ميزان المراجعة</h2>${rangeBar()}<button id="csv">تصدير CSV</button></div>
+  const rows = trialBalance(RANGE.from, RANGE.to), T = k => rows.reduce((s, r) => s + r[k], 0);
+  mainEl.innerHTML = `<div class="bar"><h2>ميزان المراجعة</h2>${rangeBar()}<button id="csv">⬇ تصدير</button></div>
   <div class="tbl"><table><thead><tr><th>الحساب</th><th>الاسم</th><th>النوع</th><th class="num">افتتاحي</th><th class="num">مدين</th><th class="num">دائن</th><th class="num">ختامي</th></tr></thead><tbody>
   ${rows.map(r => `<tr><td>${esc(r.a.code)}</td><td>${esc(r.a.nameAr || r.a.name)}</td><td>${esc(show(S.account.fields[3], r.a.type))}</td>
-    <td class="num">${fmt(r.op)}</td><td class="num">${fmt(r.dr)}</td><td class="num">${fmt(r.cr)}</td><td class="num">${fmt(r.cl)}</td></tr>`).join("")
-    || '<tr><td colspan="7" class="muted">لا توجد حركات</td></tr>'}</tbody>
+    <td class="num">${fmt(r.op)}</td><td class="num">${fmt(r.dr)}</td><td class="num">${fmt(r.cr)}</td><td class="num">${fmt(r.cl)}</td></tr>`).join("") || '<tr><td colspan="7"><div class="empty">مفيش حركات في الفترة دي</div></td></tr>'}</tbody>
   <tfoot><tr class="tot"><td colspan="3">الإجمالي</td><td class="num">${fmt(T("op"))}</td><td class="num">${fmt(T("dr"))}</td><td class="num">${fmt(T("cr"))}</td><td class="num">${fmt(T("cl"))}</td></tr></tfoot></table></div>
-  <p class="${r2(T("dr") - T("cr")) ? "bad" : "ok"}">${r2(T("dr") - T("cr")) ? "الميزان غير متوازن" : "الميزان متوازن"}. الرصيد الموجب = مدين.</p>`;
+  <p class="${r2(T("dr") - T("cr")) ? "bad" : "ok"}">${r2(T("dr") - T("cr")) ? "✗ الميزان مش متوازن" : "✓ الميزان متوازن"}. الرصيد الموجب = مدين.</p>`;
   wireRange();
   $("#csv").onclick = () => download(`trial-balance-${RANGE.from}-${RANGE.to}.csv`, toCSV([["Account","Name","Opening","Debit","Credit","Closing"], ...rows.map(r => [r.a.code, r.a.name, r2(r.op), r2(r.dr), r2(r.cr), r2(r.cl)])]), "text/csv");
 }
@@ -797,85 +1196,133 @@ function vatReport(from, to) {
   postedLines(from, to).forEach(({l}) => {
     if (!l.tax) return; const t = rec("taxCode", l.tax); if (!t) return;
     const r = m[t.id] || (m[t.id] = {t, base: 0, tax: 0});
-    if (l.base != null) r.base += Number(l.base);
-    else r.tax += t.kind === "OUTPUT" ? (l.cr - l.dr) : (l.dr - l.cr);
+    if (l.base != null) r.base += Number(l.base); else r.tax += t.kind === "OUTPUT" ? (l.cr - l.dr) : (l.dr - l.cr);
   });
   return Object.values(m);
 }
 function renderVAT() {
   const rows = vatReport(RANGE.from, RANGE.to);
-  const out = rows.filter(r => r.t.kind === "OUTPUT").reduce((s, r) => s + r.tax, 0);
-  const inp = rows.filter(r => r.t.kind === "INPUT").reduce((s, r) => s + r.tax, 0);
-  mainEl.innerHTML = `<div class="bar"><h2>تقرير ضريبة القيمة المضافة</h2>${rangeBar()}</div>
+  const out = rows.filter(r => r.t.kind === "OUTPUT").reduce((s, r) => s + r.tax, 0), inp = rows.filter(r => r.t.kind === "INPUT").reduce((s, r) => s + r.tax, 0);
+  mainEl.innerHTML = `<div class="bar"><h2>ضريبة القيمة المضافة</h2>${rangeBar()}</div>
   <div class="kpis"><div class="kpi"><span>ضريبة المخرجات</span><b>${fmt(out)}</b></div><div class="kpi"><span>ضريبة المدخلات</span><b>${fmt(inp)}</b></div>
   <div class="kpi"><span>${out - inp >= 0 ? "صافي المستحق" : "صافي المسترد"}</span><b>${fmt(Math.abs(out - inp))}</b></div></div>
   <div class="tbl"><table><thead><tr><th>الكود</th><th>الاسم</th><th>النوع</th><th>ZATCA</th><th class="num">النسبة</th><th class="num">الوعاء</th><th class="num">الضريبة</th></tr></thead><tbody>
   ${rows.map(r => `<tr><td>${esc(r.t.code)}</td><td>${esc(r.t.name)}</td><td>${r.t.kind === "OUTPUT" ? "مخرجات" : "مدخلات"}</td><td>${esc(r.t.zatca)}</td>
-    <td class="num">${r.t.rate}%</td><td class="num">${fmt(r.base)}</td><td class="num">${fmt(r.tax)}</td></tr>`).join("")
-    || '<tr><td colspan="7" class="muted">لا توجد حركات ضريبية في الفترة</td></tr>'}</tbody></table></div>`;
+    <td class="num">${r.t.rate}%</td><td class="num">${fmt(r.base)}</td><td class="num">${fmt(r.tax)}</td></tr>`).join("") || '<tr><td colspan="7"><div class="empty">مفيش حركات ضريبية في الفترة دي</div></td></tr>'}</tbody></table></div>`;
   wireRange();
 }
 function renderBalances() {
   const c = DB.customer.map(x => ({x, b: partyBalance("cust", x.id)})).filter(r => r.b);
   const v = DB.vendor.map(x => ({x, b: -partyBalance("vend", x.id)})).filter(r => r.b);
-  const tbl = (rows, cap, ent) => `<div class="card"><h3 style="margin-top:0">${cap}</h3><div class="tbl"><table><thead><tr><th>الكود</th><th>الاسم</th><th class="num">الرصيد</th>${ent === "customer" ? '<th class="num">حد الائتمان</th>' : ""}</tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${esc(r.x.code)}</td><td>${esc(r.x.name)}</td><td class="num">${fmt(r.b)}</td>${ent === "customer" ? `<td class="num">${Number(r.x.creditLimit) ? fmt(r.x.creditLimit) : "—"}</td>` : ""}</tr>`).join("")
-    || `<tr><td colspan="4" class="muted">لا توجد أرصدة</td></tr>`}</tbody>
-    <tfoot><tr class="tot"><td colspan="2">الإجمالي</td><td class="num">${fmt(rows.reduce((s, r) => s + r.b, 0))}</td>${ent === "customer" ? "<td></td>" : ""}</tr></tfoot></table></div></div>`;
-  mainEl.innerHTML = `<div class="bar"><h2>أرصدة العملاء والموردين</h2></div>${tbl(c, "العملاء (مدين)", "customer")}${tbl(v, "الموردين (دائن)", "vendor")}`;
+  const tbl = (rows, cap, isC) => `<div class="card"><h3>${cap}</h3><div class="tbl"><table><thead><tr><th>الكود</th><th>الاسم</th><th class="num">الرصيد</th>${isC ? '<th class="num">حد الائتمان</th>' : ""}</tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${esc(r.x.code)}</td><td>${esc(r.x.name)}</td><td class="num">${fmt(r.b)}</td>${isC ? `<td class="num">${Number(r.x.creditLimit) ? fmt(r.x.creditLimit) : "—"}</td>` : ""}</tr>`).join("") || `<tr><td colspan="4" class="muted">مفيش أرصدة</td></tr>`}</tbody>
+    <tfoot><tr class="tot"><td colspan="2">الإجمالي</td><td class="num">${fmt(rows.reduce((s, r) => s + r.b, 0))}</td>${isC ? "<td></td>" : ""}</tr></tfoot></table></div></div>`;
+  mainEl.innerHTML = `<div class="bar"><h2>أرصدة العملاء والموردين</h2></div><div class="two">${tbl(c, "العملاء (مدين)", true)}${tbl(v, "الموردين (دائن)", false)}</div>`;
+}
+function renderSalesReport() {
+  const posted = DB.ticket.filter(t => t.state === "POSTED" && t.calc && t.m.issueDate >= RANGE.from && t.m.issueDate <= RANGE.to);
+  const group = keyFn => {
+    const g = {};
+    posted.forEach(t => { const k = keyFn(t), s = t.rule === "R6" ? -1 : 1, c = t.calc, r = g[k] || (g[k] = {k, n: 0, base: 0, sf: 0, vat: 0, sell: 0, comm: 0});
+      r.n += s; r.base += s * c.base; r.sf += s * c.sf; r.vat += s * (c.ticketVat + c.sfVat); r.sell += s * c.selling; r.comm += s * c.comm; });
+    return Object.values(g).sort((a, b) => b.sell - a.sell);
+  };
+  const tbl = (rows, cap) => `<div class="card"><h3>${cap}</h3><div class="tbl"><table><thead><tr><th></th><th class="num">تذاكر</th><th class="num">الأساس</th><th class="num">رسوم الخدمة</th><th class="num">الضريبة</th><th class="num">البيع</th><th class="num">عمولة STD</th><th class="num">الربح (رسوم + عمولة)</th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${esc(r.k)}</td><td class="num">${r.n}</td><td class="num">${fmt(r.base)}</td><td class="num">${fmt(r.sf)}</td><td class="num">${fmt(r.vat)}</td><td class="num">${fmt(r.sell)}</td><td class="num">${fmt(r.comm)}</td><td class="num">${fmt(r.sf + r.comm)}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">مفيش تذاكر مترحّلة في الفترة دي</td></tr>'}</tbody></table></div></div>`;
+  mainEl.innerHTML = `<div class="bar"><h2>مبيعات التذاكر</h2>${rangeBar()}</div>
+  ${helpBox("من التذاكر المترحّلة بس. الاسترداد بيتطرح من الإجماليات.")}
+  ${tbl(group(t => { const c = byCode("customer", t.m.customerCode); return c ? c.code + " — " + c.name : t.m.customerCode; }), "حسب العميل")}
+  ${tbl(group(t => { const a = findAirline(t.m); return a ? a.code + " — " + a.name : (t.m.airlineCode || "?"); }), "حسب شركة الطيران")}
+  ${tbl(group(t => t.calc.dom ? "محلي" : "دولي"), "محلي / دولي")}`;
+  wireRange();
 }
 
 /* =================== Dashboard & tools =================== */
 function renderDash() {
-  const y = new Date().getFullYear(), m0 = today().slice(0, 8) + "01";
+  const m0 = today().slice(0, 8) + "01";
   const rev = postedLines(m0, today()).filter(({l}) => rec("account", l.acc)?.type === "REVENUE").reduce((s, {l}) => s + l.cr - l.dr, 0);
   const arBal = postedLines().filter(({l}) => l.cust).reduce((s, {l}) => s + l.dr - l.cr, 0);
   const apBal = postedLines().filter(({l}) => l.vend).reduce((s, {l}) => s + l.cr - l.dr, 0);
   const vat = vatReport(m0, today()).reduce((s, r) => s + (r.t.kind === "OUTPUT" ? r.tax : -r.tax), 0);
-  const drafts = DB.journal.filter(x => x.status === "DRAFT").length + DB.arInv.filter(x => x.status === "DRAFT").length + DB.apInv.filter(x => x.status === "DRAFT").length + DB.receipt.filter(x => x.status === "DRAFT").length + DB.vendPayment.filter(x => x.status === "DRAFT").length;
+  const tReady = DB.ticket.filter(t => t.state === "READY").length, tErr = DB.ticket.filter(t => t.state === "ERROR").length;
   const p = findPeriod(today());
-  const checks = [
-    [DB.company.length > 0, "بيانات الشركة"],
-    [!!(DB.company[0] && DB.company[0].vat), "الرقم الضريبي للشركة"],
-    [!!(p && p.status === "OPEN"), "فترة مالية مفتوحة لتاريخ اليوم"],
-    [["JV","INV","CN","VI","VCN","RCPT","PAY"].every(c => DB.numSeq.some(s => s.code === c)), "تسلسل أرقام لكل المستندات"],
-    [DB.taxCode.some(t => t.kind === "OUTPUT") && DB.taxCode.some(t => t.kind === "INPUT"), "أكواد ضريبة مبيعات ومشتريات"],
-    [DB.custGroup.length > 0 && DB.custGroup.every(g => rec("account", g.arAccount)), "مجموعات العملاء مربوطة بحسابات"],
-    [DB.vendGroup.length > 0 && DB.vendGroup.every(g => rec("account", g.apAccount)), "مجموعات الموردين مربوطة بحسابات"],
-    [DB.payMethod.length > 0, "طرق الدفع"],
-    [DB.item.length > 0, "الخدمات / الأصناف"],
+  const steps = [
+    [!!(DB.company[0] && DB.company[0].vat), "أدخل الرقم الضريبي للشركة", "company"],
+    [!!(p && p.status === "OPEN"), "افتح فترة مالية لتاريخ النهارده", "period"],
+    [DB.customer.length > 2, "ضيف العملاء بنفس أكواد ملف التذاكر", "customer"],
+    [DB.sfContract.length > 1, "عرّف عقود رسوم الخدمة للعملاء", "sfContract"],
+    [DB.airline.every(a => rec("vendor", a.vendor)) && DB.airline.length > 0, "اربط شركات الطيران بالموردين", "airline"],
+    [DB.ticket.length > 0, "استورد أول ملف تذاكر", "flights"],
+    [DB.ticket.some(t => t.state === "POSTED"), "رحّل التذاكر الجاهزة", "flights"],
   ];
-  mainEl.innerHTML = `<div class="bar"><h2>لوحة التحكم</h2><span class="muted">${esc(DB.company[0]?.nameAr || DB.company[0]?.name || "")}</span></div>
+  const done = steps.filter(s => s[0]).length;
+  mainEl.innerHTML = `<div class="bar"><h2>أهلاً 👋</h2><span class="muted">${esc(DB.company[0]?.nameAr || DB.company[0]?.name || "")}</span></div>
+  <div class="tiles">
+    <button class="tile" data-go="flights"><i>✈️</i><div>استيراد تذاكر<small>${tReady} جاهز · ${tErr} فيه أخطاء</small></div></button>
+    <button class="tile" data-act="newInv"><i>🧾</i><div>فاتورة عميل جديدة<small>بيع خدمة أو رسوم</small></div></button>
+    <button class="tile" data-act="newRcpt"><i>💰</i><div>سند قبض<small>تحصيل من عميل</small></div></button>
+    <button class="tile" data-act="newCust"><i>👤</i><div>عميل جديد<small>إضافة للـ master data</small></div></button>
+    <button class="tile" data-act="newJv"><i>📒</i><div>قيد يومية<small>قيد يدوي</small></div></button>
+    <button class="tile" data-go="tb"><i>📊</i><div>ميزان المراجعة<small>الأرصدة كلها</small></div></button>
+  </div>
   <div class="kpis">
     <div class="kpi"><span>إيراد الشهر</span><b>${fmt(rev)}</b></div>
     <div class="kpi"><span>ذمم العملاء</span><b>${fmt(arBal)}</b></div>
     <div class="kpi"><span>ذمم الموردين</span><b>${fmt(apBal)}</b></div>
     <div class="kpi"><span>ضريبة الشهر (صافي)</span><b>${fmt(vat)}</b></div>
-    <div class="kpi"><span>مستندات مسودة</span><b>${drafts}</b></div>
-    <div class="kpi"><span>العملاء / الموردين / الحسابات</span><b>${DB.customer.length} / ${DB.vendor.length} / ${DB.account.length}</b></div>
   </div>
-  <div class="card"><h3 style="margin-top:0">جاهزية الإعدادات</h3><ul class="check">${checks.map(([ok, t]) => `<li class="${ok ? "ok" : "bad"}">${ok ? "✓" : "✗"} ${t}</li>`).join("")}</ul></div>
-  <p class="muted">البيانات محفوظة في هذا المتصفح فقط. خد نسخة احتياطية من «أدوات» بشكل دوري.</p>`;
+  <div class="card"><h3>🚀 ابدأ من هنا — ${done} من ${steps.length}</h3><ul class="check">
+    ${steps.map(([ok, t, go]) => `<li class="${ok ? "ok" : ""}"><span>${ok ? "✅" : "⬜"}</span> ${t}${ok ? "" : `<button class="sm" data-go="${go}">افتح ←</button>`}</li>`).join("")}</ul></div>`;
+  mainEl.onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.go) return route(b.dataset.go);
+    const a = b.dataset.act;
+    if (a === "newInv") { route("arInv"); openInvoice("AR"); }
+    if (a === "newRcpt") { route("receipt"); openForm("receipt"); }
+    if (a === "newCust") { route("customer"); openForm("customer"); }
+    if (a === "newJv") { route("journal"); openJournal(); }
+  };
 }
 function renderTools() {
   mainEl.innerHTML = `<div class="bar"><h2>نسخ احتياطي واستعادة</h2></div>
-  <div class="card"><p>تصدير كل البيانات لملف JSON، واستعادتها على نفس الجهاز أو على جهاز تاني.</p>
-  <div class="bar"><button class="pri" id="bk">تنزيل نسخة احتياطية</button><button id="rs">استعادة من ملف</button></div></div>
-  <div class="card"><p class="bad">إعادة الضبط بتمسح كل البيانات وترجّع البيانات الافتراضية.</p><button class="danger" id="reset">إعادة ضبط</button></div>`;
-  $("#bk").onclick = () => download(`akeed-erp-backup-${today()}.json`, JSON.stringify(DB, null, 1), "application/json");
+  ${helpBox("البيانات محفوظة في المتصفح ده بس. لو مسحت بيانات المتصفح أو فتحت من جهاز تاني، هتحتاج النسخة الاحتياطية.")}
+  <div class="card"><h3>💾 نسخة احتياطية</h3><p>تنزيل كل البيانات في ملف JSON، واستعادتها على نفس الجهاز أو جهاز تاني.</p>
+  <div class="bar"><button class="pri" id="bk">⬇ تنزيل نسخة احتياطية</button><button id="rs">⬆ استعادة من ملف</button></div></div>
+  <div class="card"><h3>⚠️ إعادة الضبط</h3><p class="bad">بتمسح كل البيانات وترجّع البيانات الافتراضية.</p><button class="danger" id="reset">إعادة ضبط</button></div>`;
+  $("#bk").onclick = () => download(`akeed-erp-backup-${today()}.json`, JSON.stringify(DB), "application/json");
   $("#rs").onclick = () => pickFile(".json,application/json", t => {
     try {
       const d = JSON.parse(t);
       if (!d || !Array.isArray(d.account) || !Array.isArray(d.journal)) throw new Error("ملف غير صالح");
       if (!confirm("استبدال كل البيانات الحالية بمحتوى الملف؟")) return;
-      DB = d; Object.keys(S).concat(TX_KEYS).forEach(k => { if (!Array.isArray(DB[k])) DB[k] = []; });
-      persist(); toast("تمت الاستعادة"); route("dash");
+      DB = d; ensureShape(); persist(); toast("تمت الاستعادة ✓"); route("dash");
     } catch (e) { alert("تعذرت الاستعادة: " + e.message); }
   });
-  $("#reset").onclick = () => { if (confirm("مسح كل البيانات؟") && confirm("متأكد؟ العملية لا يمكن التراجع عنها")) { DB = seed(); persist(); route("dash"); } };
+  $("#reset").onclick = () => { if (confirm("مسح كل البيانات؟") && confirm("متأكد؟ مفيش رجوع")) { DB = seed(); ensureShape(); persist(); route("dash"); } };
 }
 
 /* =================== Seed =================== */
+const AIRPORTS = [
+  ["RUH","King Khalid Intl","Riyadh","SA","RIYADH"],["JED","King Abdulaziz Intl","Jeddah","SA","JEDDAH,JEDDAH KING ABDUL"],
+  ["DMM","King Fahd Intl","Dammam","SA","DAMMAM"],["MED","Prince Mohammad bin Abdulaziz","Madinah","SA","MADINAH,MEDINA"],
+  ["AHB","Abha","Abha","SA","ABHA"],["TUU","Tabuk","Tabuk","SA","TABUK"],["ELQ","Gassim","Qassim","SA","GASSIM,QASSIM"],
+  ["TIF","Taif","Taif","SA","TAIF"],["RAE","Arar","Arar","SA","ARAR"],["TUI","Turaif","Turaif","SA","TURAIF"],["URY","Gurayat","Gurayat","SA","GURAYAT"],
+  ["YNB","Yanbu","Yanbu","SA","YANBU AL BAHR,YANBU"],["HAS","Hail","Hail","SA","HAIL"],["RSI","Red Sea Intl","Red Sea","SA","RED SEA PROJECT,RED SEA INTL"],
+  ["ULH","AlUla","AlUla","SA","ALULA,AL ULA"],["NUM","Neom Bay","Neom","SA","NEOM BAY"],["SHW","Sharurah","Sharurah","SA","SHARURAH"],
+  ["ABT","Al Baha","Al Baha","SA","AL BAHA"],["EJH","Al Wajh","Al Wajh","SA","WEDJH,AL WAJH"],["GIZ","Jazan","Jazan","SA","JAZAN,GIZAN"],["AJF","Al Jouf","Al Jouf","SA","AL JOUF"],
+  ["DXB","Dubai Intl","Dubai","AE","DUBAI"],["DOH","Hamad Intl","Doha","QA","DOHA"],["BAH","Bahrain Intl","Manama","BH","BAHRAIN"],
+  ["CAI","Cairo Intl","Cairo","EG","CAIRO"],["IST","Istanbul Airport","Istanbul","TR","ISTANBUL AIRPORT,ISTANBUL"],["LHR","London Heathrow","London","GB","LONDON LHR"],
+  ["AMM","Queen Alia Intl","Amman","JO","AMMAN"],["KRT","Khartoum","Khartoum","SD","KHARTOUM"],["CDG","Paris CDG","Paris","FR","PARIS CDG"],
+  ["MCT","Muscat Intl","Muscat","OM","MUSCAT"],["SLL","Salalah","Salalah","OM","SALALAH"],["BEY","Beirut","Beirut","LB","BEIRUT"],
+];
+function addSeedAirports(d) {
+  const dom = d.taxRegion.find(r => r.scope === "DOM"), intl = d.taxRegion.find(r => r.scope === "INTL");
+  AIRPORTS.forEach(([c, n, city, cc, al]) => {
+    const ex = d.airport.find(a => up(a.code) === c);
+    if (ex) { if (!ex.aliases) ex.aliases = al; return; }
+    d.airport.push({id: uid(), code: c, name: n, city, country: cc, aliases: al, region: (cc === "SA" ? dom : intl)?.id || ""});
+  });
+}
 function seed() {
   const d = emptyDB();
   const add = (k, o) => { o.id = uid(); d[k].push(o); return o.id; };
@@ -886,93 +1333,91 @@ function seed() {
   add("company", {code: "AKEED", name: "Fly Akeed Travel Agency", nameAr: "أكيد للسفر والسياحة", vat: "", cr: "", city: "الرياض", address: "", baseCurrency: sar});
   [["JV","JV-"],["INV","INV-"],["CN","CN-"],["VI","VI-"],["VCN","VCN-"],["RCPT","RCPT-"],["PAY","PAY-"]].forEach(([c, p]) => add("numSeq", {code: c, prefix: p, next: 1, pad: 6}));
   const fy = {id: uid(), code: String(y), start: `${y}-01-01`, end: `${y}-12-31`}; d.fiscalYear.push(fy); genPeriods(fy, d);
-
   const COA = [
-    ["1","Assets","الأصول","ASSET",null,false],["1101","Cash on hand","النقدية بالصندوق","ASSET","1",true],
-    ["1102","Bank - main","البنك الرئيسي","ASSET","1",true],["1103","Gateway clearing","تسوية بوابات الدفع","ASSET","1",true],
-    ["1104","AMEX CTA / GR clearing","تسوية AMEX CTA","ASSET","1",true],["1201","Trade receivables","ذمم العملاء","ASSET","1",true],
-    ["1202","Refund tickets control","رقابة التذاكر المستردة","ASSET","1",true],["1301","Input VAT","ضريبة المدخلات","ASSET","1",true],
+    ["1","Assets","الأصول","ASSET",null,false],["1101","Cash on hand","النقدية بالصندوق","ASSET","1",true],["1102","Bank - main","البنك الرئيسي","ASSET","1",true],
+    ["1103","Gateway clearing","تسوية بوابات الدفع","ASSET","1",true],["1104","AMEX CTA / GR clearing","تسوية AMEX CTA","ASSET","1",true],
+    ["1201","Trade receivables","ذمم العملاء","ASSET","1",true],["1202","Refund tickets control","رقابة التذاكر المستردة","ASSET","1",true],["1301","Input VAT","ضريبة المدخلات","ASSET","1",true],
     ["2","Liabilities","الخصوم","LIABILITY",null,false],["2101","Trade payables - airlines/BSP","ذمم الموردين - الطيران/BSP","LIABILITY","2",true],
     ["2102","Customer wallet balances","أرصدة محافظ العملاء","LIABILITY","2",true],["2201","Output VAT","ضريبة المخرجات","LIABILITY","2",true],
     ["3","Equity","حقوق الملكية","EQUITY",null,false],["3101","Share capital","رأس المال","EQUITY","3",true],["3201","Retained earnings","الأرباح المحتجزة","EQUITY","3",true],
-    ["4","Revenue","الإيرادات","REVENUE",null,false],["4101","Ticket sales","مبيعات التذاكر","REVENUE","4",true],
-    ["4102","Service fee income","إيراد رسوم الخدمة","REVENUE","4",true],["4103","STD commission income","إيراد عمولة STD","REVENUE","4",true],
-    ["4104","Extra earning / agency charge","إيرادات إضافية","REVENUE","4",true],["4105","Penalty income","إيراد غرامات","REVENUE","4",true],
-    ["4106","Hotel revenue","إيراد الفنادق","REVENUE","4",true],
-    ["5","Cost of sales","تكلفة المبيعات","EXPENSE",null,false],["5101","Cost of tickets","تكلفة التذاكر","EXPENSE","5",true],
-    ["5102","Penalty cost","تكلفة الغرامات","EXPENSE","5",true],["5103","Hotel cost","تكلفة الفنادق","EXPENSE","5",true],
-    ["6","Operating expenses","المصروفات التشغيلية","EXPENSE",null,false],["6101","Payment gateway fees","عمولات بوابات الدفع","EXPENSE","6",true],
-    ["6102","Salaries","الرواتب","EXPENSE","6",true],["6103","Rent","الإيجار","EXPENSE","6",true],
+    ["4","Revenue","الإيرادات","REVENUE",null,false],["4101","Ticket sales","مبيعات التذاكر","REVENUE","4",true],["4102","Service fee income","إيراد رسوم الخدمة","REVENUE","4",true],
+    ["4103","STD commission income","إيراد عمولة STD","REVENUE","4",true],["4104","Extra earning / agency charge","إيرادات إضافية","REVENUE","4",true],
+    ["4105","Penalty income","إيراد غرامات","REVENUE","4",true],["4106","Hotel revenue","إيراد الفنادق","REVENUE","4",true],
+    ["5","Cost of sales","تكلفة المبيعات","EXPENSE",null,false],["5101","Cost of tickets","تكلفة التذاكر","EXPENSE","5",true],["5102","Penalty cost","تكلفة الغرامات","EXPENSE","5",true],
+    ["5103","Hotel cost","تكلفة الفنادق","EXPENSE","5",true],["6","Operating expenses","المصروفات التشغيلية","EXPENSE",null,false],
+    ["6101","Payment gateway fees","عمولات بوابات الدفع","EXPENSE","6",true],["6102","Salaries","الرواتب","EXPENSE","6",true],["6103","Rent","الإيجار","EXPENSE","6",true],
   ];
   const A = {};
   COA.forEach(([c, n, na, t, p, post]) => { A[c] = add("account", {code: c, name: n, nameAr: na, type: t, parent: p ? A[p] : "", posting: post, blocked: false, reqDim: ""}); });
-
-  const dims = {};
-  [["DEPT","الإدارة",[["OPS","العمليات"],["FIN","المالية"],["SALES","المبيعات"]]],
-   ["BRANCH","الفرع",[["RUH","الرياض"],["JED","جدة"],["DMM","الدمام"]]],
+  [["DEPT","الإدارة",[["OPS","العمليات"],["FIN","المالية"],["SALES","المبيعات"]]],["BRANCH","الفرع",[["RUH","الرياض"],["JED","جدة"],["DMM","الدمام"]]],
    ["SERVICE","نوع الخدمة",[["FLT","طيران"],["HTL","فنادق"],["OTH","خدمات أخرى"]]]].forEach(([c, n, vals]) => {
-    dims[c] = add("dimension", {code: c, name: n});
-    vals.forEach(([vc, vn]) => add("dimValue", {dimension: dims[c], code: vc, name: vn, active: true}));
+    const did = add("dimension", {code: c, name: n}); vals.forEach(([vc, vn]) => add("dimValue", {dimension: did, code: vc, name: vn, active: true}));
   });
-
   const T = {};
   [["S15-OUT","ضريبة مبيعات 15% (محلي)","OUTPUT",15,"S","2201"],["Z0-OUT","ضريبة مبيعات 0% (دولي)","OUTPUT",0,"Z","2201"],
    ["S15-IN","ضريبة مشتريات 15%","INPUT",15,"S","1301"],["Z0-IN","ضريبة مشتريات 0%","INPUT",0,"Z","1301"]]
     .forEach(([c, n, k, r, z, a]) => { T[c] = add("taxCode", {code: c, name: n, kind: k, rate: r, zatca: z, account: A[a]}); });
-  const dom = add("taxRegion", {code: "DOM", name: "داخل المملكة", scope: "DOM", outTax: T["S15-OUT"], inTax: T["S15-IN"], sfTax: T["S15-OUT"]});
-  const intl = add("taxRegion", {code: "INTL", name: "دولي", scope: "INTL", outTax: T["Z0-OUT"], inTax: T["Z0-IN"], sfTax: T["Z0-OUT"]});
-  [["RUH","الملك خالد الدولي","الرياض","SA"],["JED","الملك عبدالعزيز الدولي","جدة","SA"],["DMM","الملك فهد الدولي","الدمام","SA"],
-   ["MED","الأمير محمد بن عبدالعزيز","المدينة المنورة","SA"],["AHB","أبها","أبها","SA"],["TUU","تبوك","تبوك","SA"],["ELQ","القصيم","القصيم","SA"],
-   ["DXB","Dubai International","Dubai","AE"],["DOH","Hamad International","Doha","QA"],["BAH","Bahrain International","Manama","BH"],
-   ["CAI","Cairo International","Cairo","EG"],["IST","Istanbul Airport","Istanbul","TR"],["LHR","London Heathrow","London","GB"]]
-    .forEach(([c, n, city, cc]) => add("airport", {code: c, name: n, city, country: cc, region: cc === "SA" ? dom : intl}));
-
-  const net0 = add("payTerm", {code: "NET0", name: "فوري", days: 0});
-  const net30 = add("payTerm", {code: "NET30", name: "30 يوم", days: 30});
-  [["CASH","نقدي","CASH","1101",0,0],["BANK","تحويل بنكي","BANK","1102",0,0],["MADA","مدى","CARD","1103",0.8,0],
-   ["VISA","فيزا / ماستركارد","CARD","1103",1.85,0],["MOYASAR","Moyasar","GATEWAY","1103",0,0],["PAYFORT","Payfort","GATEWAY","1103",0,0],
-   ["CTA","AMEX CTA / GR","CTA","1104",0,0],["WALLET","محفظة العميل","WALLET","2102",0,0]]
-    .forEach(([c, n, k, a, p, f]) => add("payMethod", {code: c, name: n, kind: k, account: A[a], feePct: p, feeFixed: f}));
+  add("taxRegion", {code: "DOM", name: "داخل المملكة", scope: "DOM", outTax: T["S15-OUT"], inTax: T["S15-IN"], sfTax: T["S15-OUT"]});
+  add("taxRegion", {code: "INTL", name: "دولي", scope: "INTL", outTax: T["Z0-OUT"], inTax: T["Z0-IN"], sfTax: T["Z0-OUT"]});
+  addSeedAirports(d);
+  const net0 = add("payTerm", {code: "NET0", name: "فوري", days: 0}), net30 = add("payTerm", {code: "NET30", name: "30 يوم", days: 30});
+  [["CASH","نقدي","CASH","1101",0],["BANK","تحويل بنكي","BANK","1102",0],["MADA","مدى","CARD","1103",0.8],["VISA","فيزا / ماستركارد","CARD","1103",1.85],
+   ["MOYASAR","Moyasar","GATEWAY","1103",0],["PAYFORT","Payfort","GATEWAY","1103",0],["CTA","AMEX CTA / GR","CTA","1104",0],["WALLET","محفظة العميل","WALLET","2102",0]]
+    .forEach(([c, n, k, a, p]) => add("payMethod", {code: c, name: n, kind: k, account: A[a], feePct: p, feeFixed: 0}));
   add("bank", {code: "BNK01", name: "البنك الرئيسي", iban: "", currency: sar, account: A["1102"]});
-
   const gB2C = add("custGroup", {code: "B2C", name: "أفراد", arAccount: A["1201"]});
   const gCorp = add("custGroup", {code: "CORP", name: "شركات وجهات حكومية", arAccount: A["1201"]});
   add("customer", {code: "CASH", name: "Cash customer", nameAr: "عميل نقدي", category: "B2C", group: gB2C, vat: "", payTerm: net0, creditLimit: 0, blocked: false});
   const demo = add("customer", {code: "DEMO-B2B", name: "Demo Company", nameAr: "شركة تجريبية", category: "B2B", group: gCorp, vat: "300000000000003", payTerm: net30, creditLimit: 50000, blocked: false});
-
   const vAir = add("vendGroup", {code: "AIRLINES", name: "شركات الطيران / BSP", apAccount: A["2101"]});
   const vOth = add("vendGroup", {code: "OTHERS", name: "موردين آخرين", apAccount: A["2101"]});
   const bsp = add("vendor", {code: "BSP-SA", name: "BSP Saudi Arabia", group: vAir, payTerm: net0, blocked: false});
   add("vendor", {code: "HTL-01", name: "مورد فنادق", group: vOth, payTerm: net30, blocked: false});
   [["SV","065","Saudia"],["QR","157","Qatar Airways"],["EK","176","Emirates"],["TK","235","Turkish Airlines"],["GF","072","Gulf Air"],["MS","077","EgyptAir"]]
     .forEach(([c, n, name]) => add("airline", {code: c, num: n, name, vendor: bsp, settle: "BSP", comm: 0}));
-
   const items = {};
   [["TKT-DOM","تذكرة طيران داخلية","FLIGHT","4101","5101","S15-OUT","S15-IN"],["TKT-INTL","تذكرة طيران دولية","FLIGHT","4101","5101","Z0-OUT","Z0-IN"],
    ["SF-DOM","رسوم خدمة - محلي","FEE","4102","","S15-OUT",""],["SF-INTL","رسوم خدمة - دولي","FEE","4102","","Z0-OUT",""],
    ["HTL","حجز فندقي","HOTEL","4106","5103","S15-OUT","S15-IN"],["VISA","خدمة تأشيرة","VISA","4104","","S15-OUT",""]]
     .forEach(([c, n, t, ra, ca, ot, it]) => { items[c] = add("item", {code: c, name: n, type: t, revAccount: A[ra], costAccount: ca ? A[ca] : "", outTax: ot ? T[ot] : "", inTax: it ? T[it] : ""}); });
   add("sfContract", {customer: demo, service: items["SF-DOM"], basis: "PUBLISHED", value: 3, min: 0, vatIncl: false, from: `${y}-01-01`, to: ""});
+  d.settings = {v: 2, flight: {...FLIGHT_DEFAULTS}, flightMap: {}};
   return d;
 }
 
 /* =================== Router & boot =================== */
 function buildNav() {
-  $("#nav").innerHTML = NAV.map(([g, items]) => `<div class="grp">${g}</div>` + items.map(([k, l]) => `<a data-k="${k}">${l}</a>`).join("")).join("");
-  $("#nav").onclick = e => { const k = e.target.dataset.k; if (k) route(k); };
+  const q = up($("#navq").value);
+  $("#nav").innerHTML = NAV.map(([ic, g, items]) => {
+    const vis = items.filter(([k, l]) => !q || up(l).includes(q) || up(g).includes(q));
+    if (!vis.length) return "";
+    const open = q || openGroups.has(g) || vis.some(([k]) => k === current);
+    return `<div class="ng${open ? " open" : ""}"><div class="gh" data-g="${esc(g)}"><span>${ic}</span>${g}<span class="ar">◀</span></div>
+      <div class="gi">${vis.map(([k, l]) => `<a data-k="${k}" class="${k === current ? "active" : ""}">${l}</a>`).join("")}</div></div>`;
+  }).join("");
 }
+$("#nav").onclick = e => {
+  const a = e.target.closest("a[data-k]"); if (a) { route(a.dataset.k); $("#aside").classList.remove("open"); return; }
+  const h = e.target.closest(".gh"); if (h) { const g = h.dataset.g; openGroups.has(g) ? openGroups.delete(g) : openGroups.add(g); buildNav(); }
+};
+$("#navq").oninput = buildNav;
+$("#burger").onclick = () => $("#aside").classList.toggle("open");
 function route(k) {
   current = k;
-  document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("active", a.dataset.k === k));
+  const pg = PAGES[k]; if (pg) openGroups.add(pg.g);
+  buildNav();
+  $("#crumb").innerHTML = pg ? `${esc(pg.g)} ‹ <b>${esc(pg.l)}</b>` : "";
   mainEl.onclick = null;
   const R = {dash: renderDash, journal: renderJournals, arInv: () => renderInvoices("AR"), apInv: () => renderInvoices("AP"),
-             tb: renderTB, vat: renderVAT, balances: renderBalances, tools: renderTools};
+             tb: renderTB, vat: renderVAT, balances: renderBalances, tools: renderTools,
+             flights: renderFlights, flightSettings: renderFlightSettings, salesReport: renderSalesReport};
   (R[k] || (() => renderList(k)))();
+  window.scrollTo(0, 0);
   try { history.replaceState(null, "", "#" + k); } catch (e) {}
 }
-load(); persist(); buildNav();
+load(); persist();
 const start = location.hash.slice(1);
-route(S[start] || ["dash","journal","arInv","apInv","tb","vat","balances","tools"].includes(start) ? start : "dash");
+route(PAGES[start] ? start : "dash");
 </script>
 </body>
 </html>
