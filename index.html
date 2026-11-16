@@ -1884,7 +1884,6 @@ function route(k, opt = {}) {
 load(); applyLang();
 route(location.hash.slice(1) || "dash");
 </script>
-
 <script>
 /* ===================================================================
    PART 1 — D365 filter pane, Flights workbench, Invoice inquiry (ticket), voucher view, filtered lists
@@ -1946,7 +1945,7 @@ function runBatch(ids, fn, done) {
   step();
 }
 
-/* documents, hyperlinks, voucher */
+/* ---------- documents, hyperlinks, voucher ---------- */
 const docLink = no => no ? `<a class="lnk" data-doc="${esc(no)}">${esc(no)}</a>` : "";
 const docType = no => DB.arInv.some(x => x.number === no && !x.cn) ? "فاتورة عميل (SO)" : DB.arInv.some(x => x.number === no) ? "إشعار دائن عميل"
   : DB.apInv.some(x => x.number === no && !x.cn) ? "فاتورة مورد (PO)" : DB.apInv.some(x => x.number === no) ? "إشعار دائن مورد" : "قيد";
@@ -1961,4 +1960,955 @@ function showVoucher(nos, title) {
   const js = uniq(nos.filter(Boolean).map(jvOf)).map(n => DB.journal.find(j => j.number === n)).filter(Boolean); let dr = 0, cr = 0;
   const rows = js.flatMap(j => j.lines.map(l => { dr += l.dr; cr += l.cr; const a = rec("account", l.acc) || {};
     return `<tr><td>${esc(j.number)}</td><td>${j.date}</td><td>${esc(j.doc || "")}</td><td>${esc(a.code || "")}</td><td>${esc(a.nameAr || a.name || "")}</td><td>${esc(l.cust ? refCode("customer", l.cust) : l.vend ? refCode("vendor", l.vend) : "")}</td><td>${esc(l.memo || j.desc)}</td><td class="num">${l.dr ? fmt(l.dr) : ""}</td><td class="num">${l.cr ? fmt(l.cr) : ""}</td></tr>`; })).join("");
-  showModal(`<h3>📒 ${esc(title || "القيود")}</h3><div class
+  showModal(`<h3>📒 ${esc(title || "القيود")}</h3><div class="tbl"><table><thead><tr><th>القسيمة</th><th>التاريخ</th><th>المستند</th><th>الحساب</th><th>اسم الحساب</th><th>الطرف</th><th>البيان</th><th class="num">مدين</th><th class="num">دائن</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="9"><div class="empty">مفيش قيود مرحّلة</div></td></tr>'}</tbody><tfoot><tr class="tot"><td colspan="7">الإجمالي</td><td class="num">${fmt(dr)}</td><td class="num">${fmt(cr)}</td></tr></tfoot></table></div>
+    <div class="bar" style="margin-top:12px;justify-content:flex-end"><button data-close>${t("close")}</button></div>`);
+}
+document.addEventListener("click", e => {
+  const a = e.target.closest("[data-doc]"); if (a) { e.stopPropagation(); e.preventDefault(); openDoc(a.dataset.doc); return; }
+  const iv = e.target.closest("[data-inv]"); if (iv) { e.stopPropagation(); e.preventDefault(); X.invq = iv.dataset.inv; closeModal(); route("ticketInvoice"); return; }
+  const vb = e.target.closest("[data-vch]"); if (vb) { e.stopPropagation(); const x = DB.ticket.find(y => y.id === vb.dataset.vch); if (x) showVoucher(x.docs || [], `قيود التذكرة ${x.m.ticket}`); }
+}, true);
+
+/* ---------- Flights workbench ---------- */
+[["bookingId","Booking ID / LPO",0,["booking id","lpo no","lpo"]],["agencyId","Agency ID",0,["agency id"]],["gds","GDS / aggregator",0,["gds / aggregator","gds","aggregator"]],
+ ["travelDate","تاريخ السفر",0,["travel date"]],["returnDate","تاريخ العودة",0,["return date"]],["customerCategory","فئة العميل",0,["customer category"]]]
+  .forEach(f => { if (!FMAP.some(x => x[0] === f[0])) FMAP.push(f); });
+const _onDone = FLIGHT_IMPORT.onDone;
+FLIGHT_IMPORT.onDone = (name, rows) => { const before = new Set(DB.ticket.map(x => x.id)); _onDone(name, rows);
+  DB.ticket.forEach(x => { if (!before.has(x.id)) { x.source = x.source || "Excel"; x.confirmed = false; } }); persist(); UI.flt = "ALL"; route("flights"); };
+function tm(x) {
+  const m = x.m, tb = parseTaxes(m.taxBreakdown), k7 = r2(Math.abs(tb.K7 || 0)), fare = Math.abs(num(m.fare) || 0), tax = Math.abs(num(m.tax) || 0), comm = r2(Math.abs(num(m.commission) || 0)), ex = r2(fare + tax - k7);
+  return {k7, other: r2(tax - k7), comm, published: r2(fare + tax), supplier: r2(fare + tax - comm), inPct: ex > 0 ? r2(k7 / ex * 100) : 0};
+}
+const custLabel = x => { const c = byCode("customer", x.m.customerCode); return c ? `${c.code} ${c.name}` : `${x.m.customerCode || ""} ${x.m.customerName || ""}`; };
+const FC = [
+  {h:"الحالة", v:x => stBadge(x.state) + (x.confirmed === false ? ' <span class="badge b-skip">Excel</span>' : "")},
+  {h:"التذكرة", v:x => `<a class="lnk" data-inv="${esc(x.m.ticket)}">${esc(x.m.ticket)}</a>${x.shared || x.splitOf ? ' <span class="badge b-ready">مشترك</span>' : ""}`},
+  {h:"النطاق", v:x => x.calc ? (x.calc.dom ? "محلي" : "دولي") : ""},
+  {h:"الطيران", v:x => esc(x.m.airlineCode || x.m.airlineNum || "")},
+  {h:"العميل", v:x => esc(custLabel(x))},
+  {h:"Booking / LPO", v:x => esc(x.m.bookingId || "")},
+  {h:"تاريخ الإصدار", v:x => esc(x.m.issueDate || "")},
+  {h:"خط السير", v:x => esc(routeText(x.m))},
+  {h:"العملية", v:x => esc(x.postMode ? MODE_TXT[x.postMode].split(" — ")[0] : (x.rule || ""))},
+  {h:"المصدر", v:x => esc(x.source || "Excel")},
+  {h:"Fare", n:x => num(x.m.fare)}, {h:"Tax", n:x => num(x.m.tax)}, {h:"K7", n:x => tm(x).k7}, {h:"ضرائب أخرى", n:x => tm(x).other},
+  {h:"عمولة STD", n:x => tm(x).comm}, {h:"مبلغ المورد", n:x => tm(x).supplier},
+  {h:"ض. مدخلات محسوبة", n:x => x.calc ? x.calc.inVat : null},
+  {h:"% مدخلات", n:x => tm(x).inPct, pct:1, flag:(v, x) => x.calc && (x.calc.dom ? Math.abs(v - 15) > 0.5 : v > 0)},
+  {h:"رسوم الخدمة", n:x => x.calc ? x.calc.sf : null}, {h:"ض. مخرجات", n:x => x.calc ? r2(x.calc.ticketVat + x.calc.sfVat) : null},
+  {h:"البيع المحسوب", n:x => x.calc ? x.calc.selling : null}, {h:"فرق الملف", n:x => x.calc ? x.calc.diff : null, flag:v => v && Math.abs(v) > 1},
+  {h:"المستندات", v:x => (x.docs || []).map(docLink).join(" ")},
+  {h:"ملاحظات", wrap:1, v:x => { const note = (x.errs || [])[0] || (x.warns || [])[0] || (["HOLD","SKIP"].includes(x.state) ? x.ruleText : ""); return `<span class="${x.errs && x.errs.length ? "bad" : ""}">${esc(note || "")}</span>`; }},
+];
+const cell = (c, x) => { if (c.n) { const v = c.n(x); return `<td class="num${c.flag && v != null && c.flag(v, x) ? " bad" : ""}">${v == null || v === "" ? "" : c.pct ? v + "%" : fmt(v)}</td>`; }
+  return `<td${c.wrap ? ' style="white-space:normal;min-width:220px;font-size:12px"' : ""}>${c.v(x)}</td>`; };
+const FDEFS = [...DATE_DEFS.map(d => ({...d, l: d.k === "from" ? "تاريخ الإصدار من" : d.l})),
+  {k:"cust",t:"sel",l:"العميل",opts:() => DB.customer.map(c => [c.code, `${c.code} — ${c.name}`])},
+  {k:"vend",t:"sel",l:"المورد",opts:() => DB.vendor.map(v => [v.id, `${v.code} — ${v.name}`])},
+  {k:"al",t:"sel",l:"شركة الطيران",opts:() => uniq(DB.ticket.map(x => up(x.m.airlineCode)).filter(Boolean)).map(a => [a, a])},
+  {k:"scope",t:"sel",l:"المنطقة الضريبية",opts:() => [["DOM","محلي"],["INTL","دولي"],["NONE","غير محدد"]]},
+  {k:"tstat",t:"sel",l:"حالة التذكرة",opts:() => uniq(DB.ticket.map(x => x.m.ticketStatus).filter(Boolean)).map(a => [a, a])},
+  {k:"op",t:"sel",l:"العملية",opts:() => Object.entries(MODE_TXT).map(([a, b]) => [a, b.split(" — ")[0]])},
+  {k:"agent",t:"sel",l:"الموظف",opts:() => uniq(DB.ticket.map(x => String(x.m.agent || "")).filter(Boolean)).map(a => [a, a])},
+  {k:"gds",t:"sel",l:"GDS / aggregator",opts:() => uniq(DB.ticket.map(x => String(x.m.gds || "")).filter(Boolean)).map(a => [a, a])},
+  {k:"src",t:"sel",l:"المصدر",opts:() => [["Excel","Excel"],["Integration","Integration"],["Manual","Manual"]]},
+  {k:"stage",t:"sel",l:"المرحلة",opts:() => [["XL","Excel (غير مؤكد)"],["FL","Flights (مؤكد)"]]},
+  {k:"q",t:"text",l:"بحث",ph:"تذكرة / PNR / LPO / اسم"},
+  {k:"notrep",t:"bool",l:"غير مرحّل بس (Not reported)"}];
+function fltMatch(x, s) {
+  if (UI.flt !== "ALL" && x.state !== UI.flt) return false;
+  if (!dateOk(s, x.m.issueDate)) return false;
+  if (s.cust && up(x.m.customerCode) !== up(s.cust)) return false;
+  if (s.vend) { const a = findAirline(x.m); if (!a || a.vendor !== s.vend) return false; }
+  if (s.al && up(x.m.airlineCode) !== s.al) return false;
+  if (s.scope && (x.calc ? (x.calc.dom ? "DOM" : "INTL") : "NONE") !== s.scope) return false;
+  if (s.tstat && x.m.ticketStatus !== s.tstat) return false;
+  if (s.op && x.postMode !== s.op) return false;
+  if (s.agent && String(x.m.agent || "") !== s.agent) return false;
+  if (s.gds && String(x.m.gds || "") !== s.gds) return false;
+  if (s.src && (x.source || "Excel") !== s.src) return false;
+  if (s.stage === "XL" && x.confirmed !== false) return false;
+  if (s.stage === "FL" && x.confirmed === false) return false;
+  if (s.notrep && x.state === "POSTED") return false;
+  if (s.q) { const q = s.q.toLowerCase(); if (![x.m.ticket, x.m.pnr, x.m.bookingId, x.m.customerName, x.m.passenger].some(v => String(v || "").toLowerCase().includes(q))) return false; }
+  return true;
+}
+function renderFlightsX() {
+  const all = DB.ticket, s = st("flights"), cnt = k => all.filter(x => x.state === k).length;
+  const chips = [["ALL","الكل",all.length],["READY","جاهز",cnt("READY")],["ERROR","فيه أخطاء",cnt("ERROR")],["HOLD","معلّق",cnt("HOLD")],["SKIP","متجاهل",cnt("SKIP")],["POSTED","مرحّل",cnt("POSTED")]];
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="pri" id="imp">⬆ ${t("imp")}</button><button id="tplX">⬇ ${t("tpl")}</button>
+    <button id="cnf">✔ تأكيد المحدد (نقل لـ Flights)</button><button class="acc" id="mk">⚙ إنشاء المستندات للمحدد</button>
+    <button id="toInv">🧾 شاشة الفاتورة</button><button id="vch">📒 القيود</button><button id="recheck">🔄 إعادة الفحص</button>
+    <button id="xcsv">📤 ${t("exp")}</button><button class="danger" id="delSel">🗑 حذف المحدد</button></div>
+  ${helpBox("ارفع ملف التذاكر، وهيتحط في مرحلة <b>Excel</b>. حدد التذاكر واضغط <b>تأكيد</b> عشان تنتقل لـ <b>Flights</b>. بعد كده حدد التذاكر الجاهزة واضغط <b>إنشاء المستندات</b>: كل تذكرة بيتعمل لها SO وPO لوحدها، والمعالجة بتتم على دفعات. اضغط على رقم التذكرة يفتح شاشة الفاتورة.")}
+  ${fpHtml("flights", FDEFS)}
+  <div class="chips">${chips.map(([k, l, n]) => `<button data-f="${k}" class="${UI.flt === k ? "on" : ""}">${l} (${n})</button>`).join("")}</div>
+  <div class="tbl"><table><thead><tr><th class="sel"><input type="checkbox" data-selall></th>${FC.map(c => `<th class="${c.n ? "num" : ""}">${c.h}</th>`).join("")}</tr></thead><tbody id="tb"></tbody></table></div><div id="sum"></div>`;
+  const draw = () => {
+    const list = all.filter(x => fltMatch(x, s)), vis = list.slice(0, 500); X.vis = vis.map(x => x.id);
+    $("#tb").innerHTML = vis.map(x => `<tr class="click" data-t="${x.id}"><td class="sel"><input type="checkbox" data-sel="${x.id}"${SEL.has(x.id) ? " checked" : ""}></td>${FC.map(c => cell(c, x)).join("")}</tr>`).join("")
+      || `<tr><td colspan="${FC.length + 1}"><div class="empty">${all.length ? "مفيش تذاكر بالفلاتر دي" : "لسه مفيش تذاكر — اضغط «استيراد»"}</div></td></tr>`;
+    const T = f => list.reduce((a, x) => a + (Number(f(x)) || 0), 0);
+    $("#sum").innerHTML = sumBar([["عدد التذاكر", list.length + (list.length > 500 ? " (معروض 500)" : "")], ["المحدد", SEL.size], ["Fare", fmt(T(x => num(x.m.fare)))], ["Tax", fmt(T(x => num(x.m.tax)))],
+      ["K7", fmt(T(x => tm(x).k7))], ["الأساس", fmt(T(x => x.calc && x.calc.base))], ["رسوم الخدمة", fmt(T(x => x.calc && x.calc.sf))], ["ض. مخرجات", fmt(T(x => x.calc && x.calc.ticketVat + x.calc.sfVat))], ["البيع", fmt(T(x => x.calc && x.calc.selling))]]);
+  };
+  fpWire("flights", draw); draw();
+  mainEl.onclick = e => {
+    const cb = e.target.closest("input[data-sel],input[data-selall]");
+    if (cb) { if (cb.dataset.selall !== undefined) X.vis.forEach(id => cb.checked ? SEL.add(id) : SEL.delete(id)); else cb.checked ? SEL.add(cb.dataset.sel) : SEL.delete(cb.dataset.sel); draw(); return; }
+    const b = e.target.closest("button");
+    if (!b) { const tr = e.target.closest("tr[data-t]"); if (tr) openTicket(tr.dataset.t); return; }
+    if (b.dataset.f) { UI.flt = b.dataset.f; return route(current); }
+    const ids = [...SEL].filter(id => DB.ticket.some(x => x.id === id)), get = id => DB.ticket.find(x => x.id === id);
+    if (b.id === "imp") return importFile(FLIGHT_IMPORT);
+    if (b.id === "tplX") return exportTemplate(FMAP, "tickets");
+    if (b.id === "recheck") { DB.ticket.forEach(x => { if (x.state !== "POSTED") processTicket(x); }); persist(); toast("تمت إعادة الفحص"); return route(current); }
+    if (b.id === "cnf") { if (!ids.length) return toast("حدد تذاكر الأول"); let n = 0; ids.forEach(id => { const x = get(id); if (x.confirmed === false) { x.confirmed = true; n++; } }); persist(); toast(`اتأكد ${n} تذكرة واتنقلت لـ Flights`); return route(current); }
+    if (b.id === "mk") {
+      const ok = ids.map(get).filter(x => x.state === "READY" && x.confirmed !== false).map(x => x.id);
+      if (!ok.length) return alert("مفيش في المحدد تذاكر «جاهز» ومؤكدة (Flights).");
+      if (!confirm(`إنشاء مستندات ${ok.length} تذكرة؟ كل تذكرة هيتعمل لها SO وPO لوحدها.`)) return;
+      return runBatch(ok, postTicket, (n, fails) => { persist(); ok.forEach(id => SEL.delete(id)); route(current); alert(`اتعمل مستندات ${n} تذكرة.` + (fails.length ? `\nفشل ${fails.length}. أول خطأ: ${fails[0]}` : "")); });
+    }
+    if (b.id === "toInv") { const x = ids.length ? get(ids[0]) : null; X.invq = x ? x.m.ticket : ""; return route("ticketInvoice"); }
+    if (b.id === "vch") { if (!ids.length) return toast("حدد تذاكر الأول"); return showVoucher(ids.flatMap(id => get(id).docs || []), `قيود ${ids.length} تذكرة`); }
+    if (b.id === "xcsv") { const list = all.filter(x => fltMatch(x, s)); return download(`tickets-${today()}.csv`, toCSV([FC.map(c => c.h), ...list.map(x => FC.map(c => c.n ? (c.n(x) ?? "") : String(c.v(x)).replace(/<[^>]+>/g, "")))]), "text/csv"); }
+    if (b.id === "delSel") { const del = ids.filter(id => get(id).state !== "POSTED"); if (!del.length) return toast("مفيش تذاكر غير مرحّلة في المحدد");
+      if (!confirm(`حذف ${del.length} تذكرة غير مرحّلة؟`)) return; DB.ticket = DB.ticket.filter(x => !del.includes(x.id)); del.forEach(id => SEL.delete(id)); persist(); return route(current); }
+  };
+}
+
+/* ---------- Invoice inquiry screen (ticket) ---------- */
+const fv = (l, v, bad) => `<div class="fv">${l}<b class="${bad ? "bad" : ""}">${v === "" || v == null ? "—" : v}</b></div>`;
+const ft = (title, body) => `<div class="ft"><h4>${title}</h4><div class="ft-b">${body}</div></div>`;
+function ticketCard(x) {
+  const m = x.m, c = x.calc, k = tm(x), cust = byCode("customer", m.customerCode), al = findAirline(m), ven = al && rec("vendor", al.vendor), ctr = cust && findContract(cust, m.issueDate);
+  const acG = Math.abs(num(m.airlineCharge) || 0), legs = legsOf(m).length;
+  return `<div class="card"><h3>${stBadge(x.state)} &nbsp;تذكرة ${esc(m.ticket)} — ${esc(x.postMode ? MODE_TXT[x.postMode] : (x.ruleText || ""))}</h3>
+  ${(x.errs || []).length ? `<div class="err">${esc(x.errs.join("\n"))}</div>` : ""}${(x.warns || []).length ? `<div class="warn">${esc(x.warns.join("\n"))}</div>` : ""}
+  ${ft("📄 عام", [fv("المرحلة", x.confirmed === false ? "Excel (غير مؤكد)" : "Flights (مؤكد)"), fv("المصدر", esc(x.source || "Excel")), fv("حالة التذكرة", esc(m.ticketStatus)), fv("PNR", esc(m.pnr)),
+    fv("Booking ID / LPO", esc(m.bookingId)), fv("Agency ID", esc(m.agencyId)), fv("GDS / aggregator", esc(m.gds)), fv("الموظف", esc(m.agent)), fv("تاريخ الإصدار", esc(m.issueDate)),
+    fv("تاريخ السفر", esc(normDate(m.travelDate) || m.travelDate)), fv("تاريخ العودة", esc(normDate(m.returnDate) || m.returnDate)), fv("الراكب", esc(m.passenger)),
+    fv("العميل", esc(cust ? cust.code + " — " + cust.name : (m.customerCode || "") + " (مش موجود)"), !cust), fv("فئة العميل", esc(cust ? cust.category : m.customerCategory)),
+    fv("شركة الطيران", esc(al ? al.code + " — " + al.name : m.airlineCode)), fv("المورد", esc(ven ? ven.code + " — " + ven.name : "")), fv("كود القطاع / خط السير", esc(routeText(m))),
+    fv("عدد المقاطع", legs ? legs - 1 : ""), fv("النطاق", c ? (c.dom ? "محلي" : "دولي") + ` <small class="muted">(${esc(x.domWhy || "")})</small>` : "", !c), fv("طريقة الدفع", esc(m.payMethod || m.payCategory))].join(""))}
+  ${c ? ft("💰 المبالغ والضرائب", [fv("Fare", fmt(c.fare)), fv("Tax (الإجمالي)", fmt(c.tax)), fv("K7 من الملف", fmt(k.k7)), fv("ضرائب أخرى (Tax − K7)", fmt(k.other)), fv("السعر المنشور", fmt(k.published)),
+    fv("عمولة STD", fmt(k.comm)), fv("مبلغ المورد", fmt(k.supplier)), fv("ضريبة المدخلات المحسوبة", fmt(c.inVat)), fv("% المدخلات من مبلغ المورد", k.inPct + "%", c.dom ? Math.abs(k.inPct - 15) > 0.5 : k.inPct > 0),
+    fv("فرق K7 عن المحسوب", fmt(r2(k.k7 - c.inVat)), Math.abs(k.k7 - c.inVat) > 0.05), fv("الأساس (بدون K7)", fmt(c.base)), fv("رسوم الخدمة", fmt(c.sf)),
+    fv("عقد رسوم الخدمة", ctr ? `${ctr.basis === "FLAT" ? "مبلغ ثابت" : ctr.basis === "COST" ? "% من التكلفة" : "% من المنشور"} — ${ctr.value}${ctr.basis === "FLAT" ? "" : "%"}` : "مفيش عقد", !ctr && x.postMode === "SALE"),
+    fv("ضريبة المخرجات", fmt(c.ticketVat + c.sfVat)), fv("سعر البيع المحسوب", fmt(c.selling)), fv("سعر البيع في الملف", c.fileSelling == null ? "" : fmt(c.fileSelling)),
+    fv("الفرق (تطبيق العقد)", c.diff == null ? "" : fmt(c.diff), c.diff && Math.abs(c.diff) > 1), fv("الربح (رسوم + عمولة)", fmt(c.sf + c.comm)),
+    ...(acG ? [fv("غرامة الطيران (شاملة 15%)", fmt(acG)), fv("ضريبة غرامة الطيران", fmt(r2(acG - c.acNet))), fv("غرامة الوكالة (صافي)", fmt(c.agNet))] : [])].join("")) : ""}
+  ${ft("🔗 المستندات", (x.docs || []).length ? (x.docs || []).map(no => fv(docType(no), docLink(no))).join("") + `<div class="fv">&nbsp;<button class="sm" data-vch="${x.id}">📒 كل القيود (SO + PO)</button></div>` : '<span class="muted">لسه مفيش مستندات</span>')}
+  </div>`;
+}
+function relatedHtml(q) {
+  const k = tkKey(q); if (!k) return "";
+  const sl = DB.stmt.filter(l => tkKey(l.m.ticket) === k), adm = DB.admAcm.filter(r => tkKey(r.ticket) === k), iata = (DB.iataDoc || []).filter(r => tkKey(r.ticket) === k);
+  if (!sl.length && !adm.length && !iata.length) return "";
+  return `<div class="card"><h3>🔗 الحركات المرتبطة (AMEX / BSP / ADM / ACM)</h3><div class="tbl"><table><thead><tr><th>المصدر</th><th>التاريخ</th><th>النوع</th><th class="num">المبلغ</th><th>الحالة</th><th>القسيمة</th></tr></thead><tbody>
+    ${sl.map(l => `<tr><td>${l.kind}</td><td>${esc(l.date || "")}</td><td>${esc(l.m.type || l.m.docType || "")}</td><td class="num">${fmt(l.amt)}</td><td>${stBadge(l.state)}</td><td>${docLink(l.jv)}</td></tr>`).join("")}
+    ${adm.map(r => `<tr><td>${r.type}</td><td>${r.date}</td><td>${esc(r.reason || "")}</td><td class="num">${fmt(r.amount)}</td><td>${statusBadge(r.status)}</td><td>${docLink(r.jv)}</td></tr>`).join("")}
+    ${iata.map(r => `<tr><td>IATA ${r.type}</td><td>${r.date}</td><td>${esc(r.reason || "")}</td><td class="num">${fmt(r.amount)}</td><td>${statusBadge(r.status)}</td><td>${docLink(r.jv)}</td></tr>`).join("")}</tbody></table></div></div>`;
+}
+function renderTicketInvoice() {
+  const q = X.invq || "", k = tkKey(q), rows = k ? DB.ticket.filter(x => tkKey(x.m.ticket) === k) : [];
+  const sugg = q && !rows.length ? DB.ticket.filter(x => String(x.m.ticket).includes(q.trim())).slice(0, 15) : [];
+  mainEl.innerHTML = `<div class="bar"><h2></h2><input id="tq" placeholder="رقم التذكرة" value="${esc(q)}" style="max-width:220px"><button class="acc" id="tload">⟳ تحميل التفاصيل</button>
+    ${rows.length ? '<button id="tvch">📒 كل القيود</button>' : ""}<button id="tfl">✈️ رجوع لـ Flights</button></div>
+  ${helpBox("شاشة الفاتورة: اكتب رقم التذكرة واضغط «تحميل التفاصيل»، وهتجيب كل بياناتها من شاشات العمليات: الحالة، والمبالغ، والضرائب، والعقد، والمستندات، والقيود، والحركات المرتبطة. لو التذكرة ليها بيع واسترداد، هيظهروا الاتنين. روابط الـ SO والـ PO بتفتح المستند نفسه.")}
+  ${q && !rows.length ? `<div class="empty">مفيش تذكرة بالرقم ده${sugg.length ? "<br><br>يمكن تقصد: " + sugg.map(x => `<a class="lnk" data-inv="${esc(x.m.ticket)}">${esc(x.m.ticket)}</a>`).join(" · ") : ""}</div>` : ""}
+  ${!q ? '<div class="empty">اكتب رقم التذكرة فوق، أو اضغط على أي رقم تذكرة في شاشة Flights.</div>' : ""}
+  ${rows.map(ticketCard).join("")}${relatedHtml(q)}`;
+  const load = () => { X.invq = $("#tq").value.trim(); route(current); };
+  $("#tq").onkeydown = e => { if (e.key === "Enter") load(); };
+  mainEl.onclick = e => { const b = e.target.closest("button"); if (!b) return;
+    if (b.id === "tload") load(); if (b.id === "tfl") route("flights");
+    if (b.id === "tvch") showVoucher(rows.flatMap(x => x.docs || []), `قيود التذكرة ${q}`); };
+}
+
+/* ---------- filtered invoice lists ---------- */
+function renderInvList(kind) {
+  const ar = kind === "AR", key = ar ? "arInv" : "apInv", pEnt = ar ? "customer" : "vendor", s = st(key);
+  const defs = [...DATE_DEFS, {k:"party",t:"sel",l:ar ? "العميل" : "المورد",opts:() => DB[pEnt].map(r => [r.id, `${r.code} — ${r.name}`])},
+    {k:"type",t:"sel",l:"النوع",opts:() => [["INV","فاتورة"],["CN","إشعار دائن"]]}, {k:"status",t:"sel",l:"الحالة",opts:() => [["POSTED","مرحّل"],["DRAFT","مسودة"]]},
+    {k:"src",t:"sel",l:"المصدر",opts:() => [["TKT","تذاكر"],["SVC","خدمات"],["MAN","يدوي"]]}, {k:"q",t:"text",l:"بحث",ph:"رقم / تذكرة / مرجع"}, {k:"settled",t:"bool",l:"إظهار المسوّى (Show settled)"}];
+  const all = [...DB[key]].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="pri" id="add">＋ ${t("new")}</button><button id="vch">📒 القيود</button><button id="xcsv">📤 ${t("exp")}</button></div>
+  ${fpHtml(key, defs)}<div class="tbl"><table><thead><tr><th>الرقم</th><th>التاريخ</th><th>${ar ? "العميل" : "المورد"}</th><th>التذكرة / المرجع</th><th>النوع</th><th class="num">قبل الضريبة</th><th class="num">الضريبة</th><th class="num">الإجمالي</th><th class="num">المفتوح</th><th>الاستحقاق</th><th>القسيمة</th><th>الحالة</th><th></th></tr></thead><tbody id="tb"></tbody></table></div><div id="sum"></div>`;
+  const match = inv => { if (!dateOk(s, inv.date)) return false; if (s.party && inv.party !== s.party) return false; if (s.type && (inv.cn ? "CN" : "INV") !== s.type) return false;
+    if (s.status && inv.status !== s.status) return false; if (s.src && (inv.ticket ? "TKT" : inv.svc ? "SVC" : "MAN") !== s.src) return false;
+    if (s.q) { const q = s.q.toLowerCase(); if (![inv.number, inv.ticket, inv.ref].some(v => String(v || "").toLowerCase().includes(q))) return false; }
+    if (!s.settled && inv.status === "POSTED" && Math.abs(openOf(inv.cn ? "CN" : "INV", inv)) < 0.005) return false; return true; };
+  let list = [];
+  const draw = () => { list = all.filter(match); let N = 0, V = 0, G = 0, O = 0;
+    $("#tb").innerHTML = list.slice(0, 500).map(inv => { const x = invTotals(inv), op = inv.status === "POSTED" ? openOf(inv.cn ? "CN" : "INV", inv) : 0, sg = inv.cn ? -1 : 1; N += sg * x.net; V += sg * x.tax; G += sg * x.total; O += sg * op;
+      return `<tr class="click" data-open="${inv.id}"><td>${esc(inv.number || "—")}</td><td>${esc(inv.date)}</td><td>${esc(refLabel(pEnt, inv.party))}</td><td>${inv.ticket ? `<a class="lnk" data-inv="${esc(inv.ticket)}">${esc(inv.ticket)}</a>` : esc(inv.ref || (inv.svc ? "خدمة" : ""))}</td>
+      <td>${inv.cn ? "إشعار دائن" : "فاتورة"}</td><td class="num">${fmt(x.net)}</td><td class="num">${fmt(x.tax)}</td><td class="num">${fmt(x.total)}</td><td class="num">${inv.status === "POSTED" ? fmt(op) : ""}</td><td>${esc(inv.due || "")}</td><td>${docLink(inv.jv)}</td><td>${statusBadge(inv.status)}</td>
+      <td>${inv.status === "DRAFT" ? `<button class="sm danger" data-del="${inv.id}">${t("del")}</button>` : ""}</td></tr>`; }).join("") || `<tr><td colspan="13"><div class="empty">مفيش مستندات بالفلاتر دي</div></td></tr>`;
+    $("#sum").innerHTML = sumBar([["العدد", list.length + (list.length > 500 ? " (معروض 500)" : "")], ["قبل الضريبة", fmt(N)], ["الضريبة", fmt(V)], ["الإجمالي", fmt(G)], ["المفتوح", fmt(O)]]); };
+  fpWire(key, draw); draw();
+  mainEl.onclick = e => { const b = e.target.closest("button");
+    if (!b) { const tr = e.target.closest("tr[data-open]"); if (tr) openInvoice(kind, tr.dataset.open); return; }
+    if (b.id === "add") return openInvoice(kind);
+    if (b.id === "vch") return showVoucher(list.slice(0, 200).map(i => i.jv), "قيود المستندات المعروضة (أول 200)");
+    if (b.id === "xcsv") return download(`${key}-${today()}.csv`, toCSV([["Number","Date","Party","Ticket/Ref","Type","Net","VAT","Total","Open","Due","Voucher","Status"], ...list.map(inv => { const x = invTotals(inv);
+      return [inv.number, inv.date, refLabel(pEnt, inv.party), inv.ticket || inv.ref || "", inv.cn ? "CN" : "INV", x.net, x.tax, x.total, inv.status === "POSTED" ? openOf(inv.cn ? "CN" : "INV", inv) : "", inv.due || "", inv.jv || "", inv.status]; })]), "text/csv");
+    if (b.dataset.del && confirm("حذف المسودة؟")) { DB[key] = DB[key].filter(x => x.id !== b.dataset.del); persist(); route(current); } };
+}
+
+/* ---------- filtered journals ---------- */
+function renderJournalsF() {
+  const s = st("journal"), all = [...DB.journal].sort((a, b) => (b.date || "").localeCompare(a.date || "") || String(b.number || "").localeCompare(String(a.number || "")));
+  const defs = [...DATE_DEFS, {k:"type",t:"sel",l:"النوع",opts:() => Object.entries(JT)}, {k:"jn",t:"sel",l:"اسم اليومية",opts:() => DB.journalName.map(j => [j.id, j.code + " — " + j.name])},
+    {k:"status",t:"sel",l:"الحالة",opts:() => [["POSTED","مرحّل"],["DRAFT","مسودة"]]}, {k:"q",t:"text",l:"بحث",ph:"قسيمة / بيان / مستند"}];
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="pri" id="add">＋ ${t("new")}</button><button id="xcsv">📤 ${t("exp")}</button></div>${fpHtml("journal", defs)}
+  <div class="tbl"><table><thead><tr><th>القسيمة</th><th>التاريخ</th><th>اسم اليومية</th><th>النوع</th><th>المستند</th><th>البيان</th><th class="num">مدين</th><th class="num">دائن</th><th>الحالة</th><th></th></tr></thead><tbody id="tb"></tbody></table></div><div id="sum"></div>`;
+  const match = j => dateOk(s, j.date) && (!s.type || j.type === s.type) && (!s.jn || j.jn === s.jn) && (!s.status || j.status === s.status) && (!s.q || [j.number, j.desc, j.doc].some(v => String(v || "").toLowerCase().includes(s.q.toLowerCase())));
+  let list = [];
+  const draw = () => { list = all.filter(match);
+    $("#tb").innerHTML = list.slice(0, 500).map(j => `<tr class="click" data-open="${j.id}"><td>${esc(j.number || "—")}</td><td>${j.date}</td><td>${esc(refCode("journalName", j.jn))}</td><td>${JT[j.type] || esc(j.type)}</td><td>${esc(j.doc || "")}</td><td>${esc(j.desc || "")}</td>
+      <td class="num">${fmt(sum(j.lines, "dr"))}</td><td class="num">${fmt(sum(j.lines, "cr"))}</td><td>${jBadge(j)}</td><td>${j.status === "DRAFT" ? `<button class="sm danger" data-del="${j.id}">${t("del")}</button>` : ""}${j.status === "POSTED" && ["GENERAL","CLOSING"].includes(j.type) && !j.reversedBy ? `<button class="sm" data-rev="${j.id}">عكس</button>` : ""}</td></tr>`).join("")
+      || '<tr><td colspan="10"><div class="empty">مفيش قيود بالفلاتر دي</div></td></tr>';
+    $("#sum").innerHTML = sumBar([["عدد القسائم", list.length], ["إجمالي المدين", fmt(list.reduce((a, j) => a + sum(j.lines, "dr"), 0))], ["إجمالي الدائن", fmt(list.reduce((a, j) => a + sum(j.lines, "cr"), 0))]]); };
+  fpWire("journal", draw); draw();
+  mainEl.onclick = e => { const b = e.target.closest("button");
+    if (!b) { const tr = e.target.closest("tr[data-open]"); if (tr) openJournal(tr.dataset.open); return; }
+    if (b.id === "add") return openJournal();
+    if (b.id === "xcsv") return download(`journals-${today()}.csv`, toCSV([["Voucher","Date","Journal name","Type","Doc","Account","Account name","Debit","Credit","Description"], ...list.flatMap(j => j.lines.map(l => { const a = rec("account", l.acc) || {}; return [j.number || "", j.date, refCode("journalName", j.jn), j.type, j.doc || "", a.code || "", a.nameAr || a.name || "", l.dr, l.cr, l.memo || j.desc]; }))]), "text/csv");
+    if (b.dataset.del && confirm("حذف المسودة؟")) { DB.journal = DB.journal.filter(x => x.id !== b.dataset.del); persist(); route(current); }
+    if (b.dataset.rev) { const d = prompt("تاريخ قيد العكس (YYYY-MM-DD):", today()); if (!d) return;
+      try { withRollback(() => reverseJournal(DB.journal.find(x => x.id === b.dataset.rev), d)); persist(); toast("تم العكس ✓"); route(current); } catch (err) { alert(err.message); } } };
+}
+
+/* ---------- filtered document lists (payments, ADM/ACM) ---------- */
+function renderDocList(key) {
+  const sc = S[key], s = st(key), pf = sc.fields.find(f => ["customer","vendor"].includes(f.k)), money = sc.fields.filter(f => f.money), cols = sc.fields.filter(f => f.list !== false), typ = sc.fields.find(f => f.k === "type" && f.opts);
+  const defs = [...DATE_DEFS]; if (pf) defs.push({k:"party",t:"sel",l:pf.l,opts:() => DB[pf.ref].map(r => [r.id, `${r.code} — ${r.name}`])});
+  if (typ) defs.push({k:"type",t:"sel",l:typ.l,opts:() => typ.opts}); defs.push({k:"status",t:"sel",l:"الحالة",opts:() => [["POSTED","مرحّل"],["DRAFT","مسودة"]]}, {k:"q",t:"text",l:"بحث"});
+  const all = [...DB[key]].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="pri" id="add">＋ ${t("new")}</button><button id="xcsv">📤 ${t("exp")}</button></div>${helpBox(sc.help)}${fpHtml(key, defs)}
+  <div class="tbl"><table><thead><tr>${cols.map(c => `<th class="${c.t === "num" ? "num" : ""}">${c.l}</th>`).join("")}<th></th></tr></thead><tbody id="tb"></tbody></table></div><div id="sum"></div>`;
+  const match = r => dateOk(s, r.date) && (!s.party || r[pf.k] === s.party) && (!s.type || r.type === s.type) && (!s.status || r.status === s.status) && (!s.q || cols.some(c => String(show(c, r[c.k])).toLowerCase().includes(s.q.toLowerCase())));
+  const draw = () => { const list = all.filter(match);
+    $("#tb").innerHTML = list.slice(0, 1000).map(r => `<tr class="click" data-row="${r.id}">${cols.map(c => `<td class="${c.t === "num" ? "num" : ""}">${c.t === "status" ? statusBadge(r[c.k]) : c.k === "jv" ? docLink(r[c.k]) : esc(show(c, r[c.k]))}</td>`).join("")}
+      <td>${r.status === "POSTED" ? "" : `<button class="sm acc" data-post="${r.id}">${t("post")}</button> <button class="sm danger" data-del="${r.id}">${t("del")}</button>`}</td></tr>`).join("") || `<tr><td colspan="${cols.length + 1}"><div class="empty">مفيش بيانات بالفلاتر دي</div></td></tr>`;
+    $("#sum").innerHTML = sumBar([["العدد", list.length], ...money.map(f => [f.l, fmt(list.reduce((a, r) => a + (Number(r[f.k]) || 0), 0))])]); };
+  fpWire(key, draw); draw();
+  mainEl.onclick = e => { const b = e.target.closest("button");
+    if (!b) { const tr = e.target.closest("tr[data-row]"); if (tr) openForm(key, tr.dataset.row); return; }
+    if (b.id === "add") return openForm(key); if (b.id === "xcsv") return exportCSV(key); if (b.dataset.del) return delRec(key, b.dataset.del);
+    if (b.dataset.post) { try { withRollback(() => sc.post(rec(key, b.dataset.post))); persist(); toast("تم الترحيل ✓"); } catch (err) { alert(err.message); } route(current); } };
+}
+
+/* ---------- register ---------- */
+PT.ticketInvoice = ["شاشة الفاتورة (استعلام التذكرة)","Invoice inquiry (ticket)","Consultation de facture (billet)","Consulta de factura (billete)","انوائس انکوائری (ٹکٹ)"];
+PT.flights = ["التذاكر (Flights)","Flights (tickets)","Vols (billets)","Vuelos (billetes)","فلائٹس (ٹکٹ)"];
+const trv = NAV.find(m => m.id === "travel");
+if (trv && !trv.s[0][1].includes("ticketInvoice")) { trv.s[0][1].splice(1, 0, "ticketInvoice"); const inq = trv.s.find(([s]) => s === "secInq"); if (inq) inq[1].unshift("ticketInvoice"); }
+PAGE_MOD.ticketInvoice = {m: "travel", s: "secTx"};
+if (!WORKSPACES.includes("flights")) WORKSPACES.splice(1, 0, "flights");
+Object.assign(R, {flights: renderFlightsX, ticketInvoice: renderTicketInvoice, arInv: () => renderInvList("AR"), apInv: () => renderInvList("AP"), journal: renderJournalsF,
+  receipt: () => renderDocList("receipt"), vendPayment: () => renderDocList("vendPayment"), svcBooking: () => renderDocList("svcBooking"), admAcm: () => renderDocList("admAcm")});
+route(current);
+})();
+</script>
+<script>
+/* ===================================================================
+   PART 2 — Payments & gateways, CTA statement, CTA/GR posting, AR sharing, Reverse, CN/DN,
+            IATA, AIR files, services & hotels, master data, reports
+   =================================================================== */
+(() => {
+"use strict";
+document.head.insertAdjacentHTML("beforeend", `<style>
+.fld{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+.fld input,.fld select{height:32px}
+.xg{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 16px}
+.xkpi{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.xkpi>div{background:#fff;border:1px solid var(--line);padding:10px 14px;min-width:160px}
+.xkpi small{display:block;color:var(--muted);font-size:12px}
+.xkpi b{font-size:18px;font-variant-numeric:tabular-nums}
+.xkpi b.bad{color:var(--bad)}
+tr.drill{cursor:pointer}
+</style>`);
+
+/* ================= helpers ================= */
+const D = k => DB[k] || (DB[k] = []);
+const nz = v => { if (typeof v === "number") return v; const n = Number(String(v ?? "").replace(/,/g, "").trim()); return isNaN(n) ? 0 : n; };
+const k10 = v => digits(v).slice(-10);
+const OPS_DEF = {revAcc:"4101", costAcc:"5101", admAcc:"5104", acmAcc:"5104", bspVendor:"BSP-SA", tolAmt:1, tolDays:3, aosEmail:"", docMode:"PER_TICKET"};
+const OPS = () => { DB.opSettings = Object.assign({...OPS_DEF}, DB.opSettings || {}); return DB.opSettings; };
+const accRec = code => code ? byCode("account", code) : null;
+const needAcc = (code, what) => { const a = accRec(code); if (!a) throw new Error(`حساب «${what}» مش متعرّف (${code || "فاضي"}). راجع «إعدادات العمليات» أو «إعداد البوابات».`); return a.id; };
+const TC = kind => { const x = byCode("taxCode", kind === "OUT" ? "S15-OUT" : "S15-IN") || DB.taxCode.find(c => c.kind === (kind === "OUT" ? "OUTPUT" : "INPUT") && Number(c.rate) > 0);
+  if (!x) throw new Error("كود ضريبة 15% مش موجود في أكواد ضريبة المبيعات"); return x; };
+const vatRate = () => { try { return Number(TC("OUT").rate) / 100; } catch (e) { return 0.15; } };
+function taxPair(kind, acc, net, vat, side, memo) { const c = TC(kind), sg = kind === "OUT" ? (side === "cr" ? 1 : -1) : (side === "dr" ? 1 : -1);
+  return [{acc, [side]: net, tax: c.id, base: r2(sg * net), memo}, {acc: c.account, [side]: vat, tax: c.id, memo: "VAT " + c.code}]; }
+const custLine = (code, dr, cr, memo) => { const c = byCode("customer", code); if (!c) throw new Error("العميل مش موجود: " + code); return {acc: controlAccount(true, c), cust: c.id, dr, cr, memo}; };
+const vendLine = (code, dr, cr, memo) => { const v = byCode("vendor", code); if (!v) throw new Error("المورد مش موجود: " + code); return {acc: controlAccount(false, v), vend: v.id, dr, cr, memo}; };
+function mkJV(date, desc, doc, lines, type) {
+  const ls = lines.map(l => ({acc: l.acc, dr: r2(l.dr || 0), cr: r2(l.cr || 0), dim: "", cust: l.cust || "", vend: l.vend || "", tax: l.tax || null, base: l.base ?? null, memo: l.memo || ""})).filter(l => l.dr || l.cr);
+  return mkJournal(date || today(), desc, ls, doc || "", type || "GENERAL").number;
+}
+const isRef = x => isRefundT(x);
+const isoWeek = d => { const x = new Date(d || today()); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + 3 - (x.getDay() + 6) % 7); const w1 = new Date(x.getFullYear(), 0, 4); return 1 + Math.round(((x - w1) / 864e5 - 3 + (w1.getDay() + 6) % 7) / 7); };
+const xd = v => normDate(v) || String(v ?? "").trim().slice(0, 10);
+const dayGap = (a, b) => (a && b) ? Math.abs((new Date(a) - new Date(b)) / 864e5) : 0;
+const lnk = no => no ? String(no).split(/,\s*/).map(n => `<a class="lnk" data-doc="${esc(n)}">${esc(n)}</a>`).join(" ") : "";
+const kpi = items => `<div class="xkpi">${items.map(([l, v, bad]) => `<div><small>${l}</small><b class="${bad ? "bad" : ""}">${v}</b></div>`).join("")}</div>`;
+const csv = (name, rows) => download(`${name}-${today()}.csv`, toCSV(rows), "text/csv");
+const badgeSt = s => s === "REVERSED" ? '<span class="badge b-rev">معكوس</span>' : statusBadge(s || "DRAFT");
+
+/* file reading (Excel / CSV / AIR text) */
+function needXLSX(cb) { if (window.XLSX) return cb(); const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"; s.onload = cb; s.onerror = () => alert("مكتبة Excel مش بتحمّل، اتأكد من الإنترنت"); document.head.appendChild(s); }
+function pickFiles(multi, cb) { needXLSX(() => { const i = document.createElement("input"); i.type = "file"; i.multiple = !!multi; i.accept = ".xlsx,.xls,.csv,.txt,.air";
+  i.onchange = async () => { const out = []; for (const f of i.files) { const buf = await f.arrayBuffer();
+    if (/\.(txt|air)$/i.test(f.name)) out.push({file: f.name, text: new TextDecoder().decode(buf)});
+    else { const wb = XLSX.read(buf, {type: "array"}); out.push({file: f.name, sheets: wb.SheetNames.map(n => ({name: n, aoa: XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, defval: "", raw: true})}))}); } }
+    try { cb(out); } catch (e) { alert(e.message); } }; i.click(); }); }
+function objs(aoa) { const hi = aoa.findIndex(r => r.filter(c => String(c).trim() !== "").length >= 3); if (hi < 0) return [];
+  const H = aoa[hi].map(h => String(h).trim().toLowerCase().replace(/[\s_.]+/g, " "));
+  return aoa.slice(hi + 1).filter(r => r.some(c => String(c).trim() !== "")).map(r => { const o = {}; H.forEach((h, i) => { if (h) o[h] = r[i]; }); return o; }); }
+const pick = (o, names) => { for (const n of names) { const v = o[String(n).toLowerCase().replace(/[\s_.]+/g, " ")]; if (v !== undefined && String(v).trim() !== "") return v; } return ""; };
+
+/* filter pane */
+const MONTHS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const FS = {}, fst = k => FS[k] || (FS[k] = {});
+const DD = [{k:"from",t:"date",l:"من تاريخ"},{k:"to",t:"date",l:"إلى تاريخ"},{k:"month",t:"month",l:"الشهر"},{k:"year",t:"year",l:"السنة"}];
+function fp(key, defs) { const s = fst(key);
+  return `<div class="fpane" data-fp2="${key}">${defs.map(d => { const v = s[d.k] ?? "";
+    if (d.t === "date") return `<label>${d.l}<input type="date" data-fk="${d.k}" value="${esc(v)}"></label>`;
+    if (d.t === "month") return `<label>${d.l}<select data-fk="${d.k}"><option value="">الكل</option>${MONTHS.map((m, i) => `<option value="${i + 1}"${String(v) === String(i + 1) ? " selected" : ""}>${m}</option>`).join("")}</select></label>`;
+    if (d.t === "year") return `<label>${d.l}<input type="number" data-fk="${d.k}" value="${esc(v)}" placeholder="الكل" style="min-width:100px;width:100px"></label>`;
+    if (d.t === "bool") return `<label class="chk"><input type="checkbox" data-fk="${d.k}"${v ? " checked" : ""}> ${d.l}</label>`;
+    if (d.t === "sel") return `<label>${d.l}<select data-fk="${d.k}"><option value="">الكل</option>${d.opts().map(([a, b]) => `<option value="${esc(a)}"${String(v) === String(a) ? " selected" : ""}>${esc(b)}</option>`).join("")}</select></label>`;
+    return `<label>${d.l}<input data-fk="${d.k}" value="${esc(v)}" placeholder="${esc(d.ph || "")}"></label>`; }).join("")}<button class="fp-reset" data-fpr>↺ مسح الفلاتر</button></div>`; }
+function fpOn(key, redraw) { const el = mainEl.querySelector(`[data-fp2="${key}"]`); if (!el) return; const s = fst(key);
+  const h = e => { const k = e.target.dataset.fk; if (!k) return; s[k] = e.target.type === "checkbox" ? e.target.checked : e.target.value; redraw(); };
+  el.addEventListener("input", h); el.addEventListener("change", h); el.querySelector("[data-fpr]").onclick = () => { Object.keys(s).forEach(k => delete s[k]); route(current); }; }
+const dOk = (s, d) => { if (!(s.from || s.to || s.month || s.year)) return true; if (!d) return false; if (s.from && d < s.from) return false; if (s.to && d > s.to) return false;
+  if (s.month && Number(d.slice(5, 7)) !== Number(s.month)) return false; if (s.year && Number(d.slice(0, 4)) !== Number(s.year)) return false; return true; };
+const sumB = items => `<div class="sumbar">${items.map(([l, v]) => `<span>${l}: <b>${v}</b></span>`).join("")}</div>`;
+const custOpts = () => DB.customer.map(c => [c.code, `${c.code} — ${c.name}`]);
+const vendOpts = () => DB.vendor.map(v => [v.code, `${v.code} — ${v.name}`]);
+
+/* ================= payment methods & gateway setup ================= */
+const pmBy = code => D("pm").find(p => up(p.code) === up(code));
+function seedPM() {
+  const vg = (byCode("vendGroup", "OTHERS") || DB.vendGroup[0] || {}).id, tg = (byCode("taxGroup", "DOM") || {}).id || "";
+  [["V-MOYASAR","Moyasar"],["V-PAYFORT","Payfort"]].forEach(([c, n]) => { if (!byCode("vendor", c) && vg) DB.vendor.push({id: uid(), code: c, name: n, group: vg, taxGroup: tg, payTerm: "", blocked: false}); });
+  const ig = (byCode("itemTaxGroup", "STD") || {}).id || "", so = (byCode("taxCode", "S15-OUT") || {}).id || "", si = (byCode("taxCode", "S15-IN") || {}).id || "";
+  [["PROF","خدمات مهنية"],["OTH","حجوزات أخرى"]].forEach(([c, n]) => { if (!byCode("item", c)) DB.item.push({id: uid(), code: c, name: n, type: "OTHER", revAccount: accId("4104"), costAccount: accId("5103"), itemTaxGroup: ig, outTax: so, inTax: si}); });
+  if (D("pm").length) return;
+  const gw = (code, vendor) => ({id: uid(), code, name: code === "MOYASAR" ? "Moyasar" : "Payfort", use: "CUST", gateway: true, ledger: "", clearing: "1103", vendor, bank: "1102", feeAcc: "6101", otherInc: "4107", dedIncl: true, tol: 1, block: true});
+  D("pm").push(gw("MOYASAR", "V-MOYASAR"), gw("PAYFORT", "V-PAYFORT"),
+    {id: uid(), code: "CTA", name: "CTA (AMEX)", use: "BOTH", ledger: "1104"}, {id: uid(), code: "GR", name: "GR", use: "BOTH", ledger: "1104"},
+    {id: uid(), code: "CASH", name: "نقدي", use: "BOTH", ledger: "1101"}, {id: uid(), code: "WALLET", name: "Wallet", use: "CUST", ledger: "2102"});
+  [["Visa","Pay","P",1.85],["Mastercard","Pay","P",1.85],["Mada","Pay","P",0.8],["All","Refund","F",1]].forEach(([scheme, type, feeType, value]) => D("pmFee").push({id: uid(), pm: "MOYASAR", scheme, type, feeType, value, vat: 15}));
+  D("pmTier").push({id: uid(), pm: "MOYASAR", from: 0, to: 999.99, ded: 10}, {id: uid(), pm: "MOYASAR", from: 1000, to: "", ded: 15});
+}
+const ledgerOf = pm => { if (pm.ledger) return needAcc(pm.ledger, "حساب " + pm.code); const g = byCode("payMethod", pm.code); if (g && g.account) return g.account; throw new Error(`طريقة الدفع ${pm.code} مالهاش حساب`); };
+const clearingOf = pm => { if (pm.clearing) return needAcc(pm.clearing, "Clearing " + pm.code); return ledgerOf(pm); };
+function feeOf(pmCode, scheme, type, amt) {
+  const L2 = D("pmFee").filter(f => up(f.pm) === up(pmCode) && f.type === type), f = L2.find(x => up(x.scheme) === up(scheme)) || L2.find(x => x.scheme === "All");
+  if (!f) return {net: 0, vat: 0, gross: 0}; const net = r2(f.feeType === "F" ? nz(f.value) : Math.abs(amt) * nz(f.value) / 100), vat = r2(net * nz(f.vat) / 100); return {net, vat, gross: r2(net + vat)}; }
+const tierOf = (pmCode, amt) => { const x = D("pmTier").filter(y => up(y.pm) === up(pmCode)).find(y => Math.abs(amt) >= nz(y.from) && (y.to === "" || y.to == null || Math.abs(amt) <= nz(y.to))); return x ? nz(x.ded) : 0; };
+function splitDed(pm, ded) { const r = vatRate(); if (pm.dedIncl !== false) { const vat = r2(ded * r / (1 + r)); return {inc: r2(ded - vat), vat, gross: ded}; } const vat = r2(ded * r); return {inc: ded, vat, gross: r2(ded + vat)}; }
+const normScheme = v => { const s = String(v || "").toLowerCase(); return /mada/.test(s) ? "Mada" : /master/.test(s) ? "Mastercard" : /visa/.test(s) ? "Visa" : /amex|american/.test(s) ? "Amex" : /apple/.test(s) ? "ApplePay" : String(v || ""); };
+
+/* ================= generic entity screens ================= */
+const SVC_T = [["FLIGHT","طيران"],["HOTEL","فنادق"],["VISA","تأشيرات"],["INSURANCE","تأمين"],["TRANSPORT","نقل"],["PROF","خدمات مهنية"],["OTHER","حجوزات أخرى"]];
+const SVC_ITEM = {HOTEL: "HTL", VISA: "VISA", INSURANCE: "INS", TRANSPORT: "TRN", PROF: "PROF", OTHER: "OTH"};
+const IATA_T = [["ADM","ADM"],["ACM","ACM"],["SPDR","SPDR"],["SPCR","SPCR"]];
+function fxRateOf(cur, date) { const c = byCode("currency", cur); if (!c) return 0; const L2 = DB.fxRate.filter(r => r.currency === c.id && r.date <= (date || today())).sort((a, b) => b.date.localeCompare(a.date)); return L2.length ? nz(L2[0].rate) : 0; }
+const gwOpts = () => D("pm").filter(p => p.gateway).map(p => [p.code, p.code]);
+const E = {
+  pm: {t: "إعداد البوابات وطرق دفع Akeed OS", help: "كل طريقة دفع ليها استخدام: دفع عميل أو دفع مورد أو الاتنين. البوابات (Moyasar وPayfort) ليها حساب Clearing ومورد تسوية، وحسابات العمولة والإيراد الآخر. لو حساب الدفتر أو الـ Clearing فاضي، السيستم بياخد حساب طريقة الدفع اللي بنفس الكود من «طرق الدفع». النسب في «نسب عمولة البوابات»، والشرائح في «شرائح خصم الاسترداد».",
+    fields: [["code","الكود","text",1],["name","الاسم","text",1],["use","الاستخدام","sel",1,[["CUST","دفع عميل"],["VEND","دفع مورد"],["BOTH","الاتنين"]]],["ledger","حساب الدفتر (CTA / GR / نقدي)","text"],
+      ["gateway","بوابة دفع","bool"],["clearing","حساب Clearing","text"],["vendor","مورد التسوية (كود)","text"],["bank","حساب بنك التسوية","text"],["feeAcc","حساب مصروف العمولة","text"],
+      ["otherInc","حساب الإيراد الآخر (خصم الاسترداد)","text"],["dedIncl","الخصم شامل الضريبة","bool"],["tol","Clearing tolerance","num"],["block","وقف الترحيل لو مش متوازن","bool"]]},
+  pmFee: {t: "نسب عمولة البوابات", fields: [["pm","البوابة","sel",1,gwOpts],["scheme","Scheme","sel",1,[["Visa","Visa"],["Mastercard","Mastercard"],["Mada","Mada"],["Amex","Amex"],["ApplePay","Apple Pay"],["All","All"]]],
+      ["type","نوع الحركة","sel",1,[["Pay","Pay"],["Refund","Refund"]]],["feeType","نوع العمولة","sel",1,[["P","نسبة %"],["F","مبلغ ثابت"]]],["value","القيمة","num",1],["vat","% الضريبة","num"]]},
+  pmTier: {t: "شرائح خصم الاسترداد", fields: [["pm","البوابة","sel",1,gwOpts],["from","من مبلغ","num",1],["to","إلى مبلغ (فاضي = مفتوح)","num"],["ded","الخصم (ثابت)","num",1]]},
+  revMap: {t: "الإيراد حسب شركة الطيران", help: "بعد «إنشاء المستندات»، سطر الإيراد في فاتورة العميل وقيدها بيتحوّل للحساب ده حسب شركة الطيران.", fields: [["airline","كود شركة الطيران","text",1],["acc","كود حساب الإيراد","text",1]]},
+  roomType: {t: "أنواع الغرف", fields: [["code","الكود","text",1],["name","الاسم","text",1],["category","الفئة","text"],["beds","عدد الأسرّة","num"]]},
+  worker: {t: "الموظفين (Workers)", fields: [["code","الكود","text",1],["name","الاسم","text",1],["customer","العميل التابع له","sel",0,custOpts],["akeedOs","كود Akeed OS","text"]]},
+  custCard: {t: "بطاقات العملاء", help: "بتستخدم في طباعة الفاتورة، ودفع CTA، وملف AMEX. اكتب آخر 4 أرقام بس.", fields: [["customer","العميل","sel",1,custOpts],["type","نوع البطاقة","sel",1,[["AMEX","AMEX"],["VISA","Visa"],["MC","Mastercard"],["MADA","Mada"]]],["last4","آخر 4 أرقام","text",1],["holder","اسم حامل البطاقة","text"],["expiry","الانتهاء (MM/YY)","text"],["cta","تُستخدم في CTA","bool"]]},
+  custReq: {t: "الحقول الإجبارية لكل عميل", help: "اكتب كود العميل أو * لكل العملاء، والحقول بأسماء أعمدة الاستيراد مفصولة بفاصلة، مثلاً: bookingId,agent,pnr", fields: [["customer","العميل (أو *)","text",1],["fields","الحقول","text",1]]},
+  noteDoc: {t: "إشعارات دائنة ومدينة (CN / DN)", help: "المبلغ شامل الضريبة. لو السطر عليه ضريبة بتتعكس، ولو مش عليه بتفضل صفر. الإشعار بيتعمل كفاتورة أو إشعار دائن حقيقي، وبيتربط بالفاتورة الأصلية لو كتبت رقم التذكرة.",
+    fields: [["number","الرقم","ro"],["date","التاريخ","date",1],["type","النوع","sel",1,[["CN","إشعار دائن"],["DN","إشعار مدين"]]],["side","الطرف","sel",1,[["C","عميل"],["V","مورد"]]],["party","كود العميل / المورد","text",1],
+      ["ticket","التذكرة","text"],["amount","المبلغ شامل الضريبة","num",1],["taxed","عليه ضريبة","bool"],["reason","السبب","text"],["status","الحالة","ro"],["inv","المستند","ro"],["jv","القيد","ro"]],
+    def: () => ({date: today(), type: "CN", side: "C", taxed: true, status: "DRAFT"}), onNew: r => { r.number = nextNo("NOTE-" + r.type); }, post: r => postNote(r)},
+  iataDoc: {t: "مستندات IATA / BSP", help: "ADM وSPDR بيتحمّلوا على الوكالة (مدين)، وACM وSPCR في صالحها (دائن). كل نوع ليه تسلسل أرقام. فيه أكتر من حساب IATA.",
+    fields: [["number","الرقم","ro"],["type","النوع","sel",1,IATA_T],["iataAcc","حساب IATA","sel",1,[["IATA-1","IATA 1"],["IATA-2","IATA 2"]]],["user","المستخدم (BSP)","text"],["date","التاريخ","date",1],["ticket","التذكرة","text"],["airline","شركة الطيران","text"],
+      ["amount","المبلغ","num",1],["reason","السبب","text"],["bspFare","Published fare (BSP)","num"],["bspStd","STD commission (BSP)","num"],["bspNet","Net payable (BSP)","num"],["voided","Void (في BSP ومش في السيستم)","bool"],["note","ملاحظات / رد Akeed OS","text"],["status","الحالة","ro"],["jv","القيد","ro"]],
+    def: () => ({date: today(), type: "ADM", iataAcc: "IATA-1", status: "DRAFT"}), onNew: r => { r.number = nextNo("IATA-" + r.type); }, post: r => postIata(r)},
+  svcOrder: {t: "الخدمات والفنادق والحجوزات الأخرى", help: "الـ Voucher بيتولّد تلقائي لكل نوع خدمة وقناة (Online / Offline). لو المصدر Integration، الـ Booking ID بييجي منه، ولو يدوي بياخد رقم الـ Voucher. الخدمات المهنية بيطلع لها فاتورة عميل بس، من غير PO. الأسعار قبل الضريبة، والضريبة بتتحسب من مجموعات الضريبة.",
+    fields: [["number","Voucher","ro"],["svcType","نوع الخدمة","sel",1,SVC_T.slice(1)],["channel","القناة","sel",1,[["ON","Online"],["OFF","Offline"]]],["source","المصدر","sel",1,[["Integration","Integration"],["Excel","Excel"],["Manual","Manual"]]],
+      ["bookingId","Booking ID","text"],["supConf","رقم تأكيد المورد","text"],["date","تاريخ الفاتورة","date",1],["customer","العميل","sel",1,custOpts],["vendor","المورد","sel",0,vendOpts],["agent","الموظف","text"],
+      ["hotel","الفندق / الوصف","text"],["city","المدينة","text"],["checkIn","Check-in","date"],["checkOut","Check-out","date"],["roomType","نوع الغرفة","sel",0,() => D("roomType").map(r => [r.code, r.code + " — " + r.name])],
+      ["currency","العملة","text"],["rate","سعر الصرف","num"],["cost","التكلفة قبل الضريبة (بالعملة)","num"],["selling","البيع قبل الضريبة (بالعملة)","num",1],["status","الحالة","ro"],["so","فاتورة العميل","ro"],["po","فاتورة المورد","ro"]],
+    def: () => ({svcType: "HOTEL", channel: "OFF", source: "Manual", date: today(), currency: "SAR", rate: 1, status: "DRAFT"}),
+    check: r => { if (r.checkIn && r.checkOut && r.checkOut < r.checkIn) return "Check-out قبل Check-in"; if (r.svcType !== "PROF" && nz(r.cost) && !r.vendor) return "اختار المورد";
+      if (up(r.currency || "SAR") !== "SAR" && !nz(r.rate)) { r.rate = fxRateOf(r.currency, r.date); if (!r.rate) return "مفيش سعر صرف للعملة دي في شاشة أسعار الصرف، اكتبه يدوي"; } },
+    onNew: r => { r.number = nextNo(`V-${r.svcType}-${r.channel}`); if (!r.bookingId || r.source === "Manual") r.bookingId = r.bookingId || r.number; }, post: r => postSvc(r)},
+};
+E.iataDoc.acts = [
+  ["📅 تغيير التاريخ", r => { const d = prompt("التاريخ الجديد (YYYY-MM-DD):", r.date); if (d) r.date = d; }, r => r.status !== "POSTED"],
+  ["⚖ مطابقة مع التذكرة", r => { const x = DB.ticket.find(y => k10(y.m.ticket) === k10(r.ticket)); if (!x) { r.voided = true; r.note = "التذكرة مش موجودة في السيستم — Void"; return; }
+    const fare = Math.abs(nz(num(x.m.fare))) + Math.abs(nz(num(x.m.tax))), std = Math.abs(nz(num(x.m.commission))), net = r2(fare - std);
+    r.note = `السيستم: منشور ${fmt(fare)} − STD ${fmt(std)} = ${fmt(net)} | BSP: ${fmt(nz(r.bspFare))} − ${fmt(nz(r.bspStd))} = ${fmt(nz(r.bspNet))} | الفرق ${fmt(r2(net - nz(r.bspNet)))}`; alert(r.note); }],
+  ["🧾 فاتورة / إشعار للعميل", r => { const x = DB.ticket.find(y => k10(y.m.ticket) === k10(r.ticket)); if (!x) throw new Error("التذكرة مش موجودة");
+    const debit = ["ADM","SPDR"].includes(r.type); D("noteDoc").push({id: uid(), number: nextNo("NOTE-" + (debit ? "DN" : "CN")), date: today(), type: debit ? "DN" : "CN", side: "C", party: x.m.customerCode, ticket: x.m.ticket, amount: Math.abs(nz(r.amount)), taxed: false, reason: `${r.type} ${r.number}`, status: "DRAFT"}); toast("اتعمل إشعار مسودة في شاشة CN / DN"); }],
+  ["↩ عكس التسوية وفتح سطر جديد", r => { const j = DB.journal.find(x => x.number === r.jv); if (!j) throw new Error("القيد مش موجود"); reverseJournal(j, today()); r.status = "REVERSED";
+    D("iataDoc").push({...r, id: uid(), number: nextNo("IATA-" + r.type), status: "DRAFT", jv: "", note: "بدل " + r.number}); }, r => r.status === "POSTED"]];
+E.iataDoc.listActs = [["📤 ملف الفروقات لـ Akeed OS", () => { const L2 = D("iataDoc").filter(r => r.voided || /الفرق -?[1-9]/.test(r.note || ""));
+  csv("iata-differences", [["Number","Type","Ticket","Date","Amount","Void","Remarks"], ...L2.map(r => [r.number, r.type, r.ticket, r.date, r.amount, r.voided ? "Yes" : "", r.note || ""])]);
+  if (OPS().aosEmail) location.href = `mailto:${OPS().aosEmail}?subject=${encodeURIComponent("BSP differences " + today())}&body=${encodeURIComponent(L2.length + " مستند فيه فروقات. الملف اتنزّل: iata-differences.csv")}`; }]];
+
+function form(key, id) {
+  const sc = E[key], r = id ? D(key).find(x => x.id === id) : {...(sc.def ? sc.def() : {})}, ro = ["POSTED","REVERSED"].includes(r.status);
+  const acts = (sc.acts || []).filter(a => id && (!a[2] || a[2](r)));
+  showModal(`<div id="xf"><h3>${sc.t}${r.number ? " — " + esc(r.number) : ""}</h3><div class="xg">${sc.fields.map(([k, l, t2, req, opts]) => { const v = r[k] ?? "", dis = (ro && k !== "note") || t2 === "ro" ? " disabled" : "";
+    if (t2 === "sel") return `<label class="fld">${l}${req ? " *" : ""}<select data-k="${k}"${dis}><option value=""></option>${(typeof opts === "function" ? opts() : opts).map(([a, b]) => `<option value="${esc(a)}"${String(v) === String(a) ? " selected" : ""}>${esc(b)}</option>`).join("")}</select></label>`;
+    if (t2 === "bool") return `<label class="fld" style="flex-direction:row;align-items:center;gap:6px;color:var(--text)"><input type="checkbox" data-k="${k}"${v ? " checked" : ""}${dis}> ${l}</label>`;
+    if (t2 === "ro") return `<label class="fld">${l}<input value="${esc(v)}" disabled></label>`;
+    return `<label class="fld">${l}${req ? " *" : ""}<input data-k="${k}" type="${t2 === "num" ? "number" : t2 === "date" ? "date" : "text"}" step="any" value="${esc(v)}"${dis}></label>`; }).join("")}</div>
+    <div class="bar" style="margin-top:14px;justify-content:flex-end">${acts.map((a, i) => `<button data-act="${i}">${a[0]}</button>`).join("")}${ro ? "" : `<button class="pri" data-save>${t("save")}</button>`}${!ro && sc.post ? `<button class="acc" data-savepost>${t("save")} + ${t("post")}</button>` : ""}<button data-close>${t("close")}</button></div></div>`);
+  const box = document.getElementById("xf");
+  const collect = () => box.querySelectorAll("[data-k]").forEach(i => { const f = sc.fields.find(x => x[0] === i.dataset.k); if (i.disabled) return; r[f[0]] = i.type === "checkbox" ? i.checked : f[2] === "num" ? (i.value === "" ? "" : Number(i.value)) : i.value.trim(); });
+  const save = () => { collect(); const miss = sc.fields.filter(f => f[3] && f[2] !== "ro" && (r[f[0]] === "" || r[f[0]] == null)).map(f => f[1]);
+    if (miss.length) { alert("لازم تملا: " + miss.join("، ")); return false; } if (sc.check) { const m = sc.check(r); if (m) { alert(m); return false; } }
+    if (!r.id) { r.id = uid(); if (sc.onNew) sc.onNew(r); D(key).push(r); } return true; };
+  box.onclick = e => { const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.save !== undefined) { if (save()) { persist(); closeModal(); route(current); } }
+    if (b.dataset.savepost !== undefined) { if (!save()) return; persist(); try { withRollback(() => sc.post(D(key).find(x => x.id === r.id))); persist(); closeModal(); toast("تم الترحيل ✓"); route(current); } catch (err) { alert(err.message); } }
+    if (b.dataset.act !== undefined) { if (!ro) collect(); try { withRollback(() => acts[+b.dataset.act][1](D(key).find(x => x.id === r.id) || r)); persist(); closeModal(); route(current); } catch (err) { alert(err.message); } } };
+}
+function crud(key) {
+  seedPM();
+  const sc = E[key], s = fst(key), hasDate = sc.fields.some(f => f[0] === "date"), sels = sc.fields.filter(f => f[2] === "sel").slice(0, 4), nums = sc.fields.filter(f => f[2] === "num" && ["amount","cost","selling"].includes(f[0]));
+  const cols = sc.fields.slice(0, 13), hasSt = sc.fields.some(f => f[0] === "status");
+  const defs = [...(hasDate ? DD : []), ...sels.map(f => ({k: f[0], t: "sel", l: f[1], opts: () => typeof f[4] === "function" ? f[4]() : f[4]})), ...(hasSt ? [{k: "status", t: "sel", l: "الحالة", opts: () => [["DRAFT","مسودة"],["POSTED","مرحّل"],["REVERSED","معكوس"]]}] : []), {k: "q", t: "text", l: "بحث"}];
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="pri" id="add">＋ ${t("new")}</button><button id="imp">⬆ ${t("imp")}</button><button id="tpl">⬇ ${t("tpl")}</button><button id="exp">📤 ${t("exp")}</button>${(sc.listActs || []).map((a, i) => `<button data-la="${i}">${a[0]}</button>`).join("")}</div>
+  ${sc.help ? helpBox(sc.help) : ""}${fp(key, defs)}<div class="tbl"><table><thead><tr>${cols.map(f => `<th class="${f[2] === "num" ? "num" : ""}">${f[1]}</th>`).join("")}<th></th></tr></thead><tbody id="tb"></tbody></table></div><div id="sum"></div>`;
+  const shw = (f, v) => f[2] === "num" ? (v === "" || v == null ? "" : fmt(v)) : f[2] === "bool" ? (v ? "✓" : "") : f[2] === "sel" ? ((typeof f[4] === "function" ? f[4]() : f[4]).find(o => String(o[0]) === String(v)) || [0, v ?? ""])[1] : (v ?? "");
+  let list = [];
+  const draw = () => { list = D(key).filter(r => (!hasDate || dOk(s, r.date)) && sels.every(f => !s[f[0]] || String(r[f[0]]) === String(s[f[0]])) && (!s.status || r.status === s.status) && (!s.q || cols.some(f => String(shw(f, r[f[0]])).toLowerCase().includes(s.q.toLowerCase()))))
+      .sort((a, b) => String(b.date || b.code || "").localeCompare(String(a.date || a.code || "")));
+    $("#tb").innerHTML = list.slice(0, 1000).map(r => `<tr class="click" data-row="${r.id}">${cols.map(f => `<td class="${f[2] === "num" ? "num" : ""}">${f[0] === "status" ? badgeSt(r.status) : ["jv","inv","so","po"].includes(f[0]) ? lnk(r[f[0]]) : esc(shw(f, r[f[0]]))}</td>`).join("")}
+      <td>${sc.post && !["POSTED","REVERSED"].includes(r.status) ? `<button class="sm acc" data-post="${r.id}">${t("post")}</button> ` : ""}${["POSTED","REVERSED"].includes(r.status) ? "" : `<button class="sm danger" data-del="${r.id}">${t("del")}</button>`}</td></tr>`).join("") || `<tr><td colspan="${cols.length + 1}"><div class="empty">مفيش بيانات</div></td></tr>`;
+    $("#sum").innerHTML = sumB([["العدد", list.length], ...nums.map(f => [f[1], fmt(list.reduce((a, r) => a + nz(r[f[0]]), 0))])]); };
+  fpOn(key, draw); draw();
+  mainEl.onclick = e => { const b = e.target.closest("button");
+    if (!b) { const tr = e.target.closest("tr[data-row]"); if (tr) form(key, tr.dataset.row); return; }
+    if (b.id === "add") return form(key);
+    if (b.id === "tpl") return csv(key + "-template", [sc.fields.filter(f => f[2] !== "ro").map(f => f[0]), sc.fields.filter(f => f[2] !== "ro").map(f => f[1])]);
+    if (b.id === "exp") return csv(key, [sc.fields.map(f => f[1]), ...list.map(r => sc.fields.map(f => r[f[0]] ?? ""))]);
+    if (b.id === "imp") return pickFiles(false, files => { if (!files[0].sheets) return alert("ارفع Excel أو CSV"); const rows = objs(files[0].sheets[0].aoa); let n = 0;
+      rows.forEach(o => { const r = {...(sc.def ? sc.def() : {})}; sc.fields.forEach(([k, l, t2]) => { if (t2 === "ro") return; const v = pick(o, [k, l]); if (v !== "") r[k] = t2 === "num" ? nz(v) : t2 === "bool" ? /^(1|y|yes|true|نعم|✓)$/i.test(String(v)) : t2 === "date" ? xd(v) : String(v).trim(); });
+        if (sc.fields.filter(f => f[3] && f[2] !== "ro").some(f => r[f[0]] === "" || r[f[0]] == null)) return; r.id = uid(); if (sc.onNew) sc.onNew(r); D(key).push(r); n++; });
+      persist(); toast(`اتضاف ${n} سطر من ${rows.length}`); route(current); });
+    if (b.dataset.la !== undefined) return sc.listActs[+b.dataset.la][1]();
+    if (b.dataset.del && confirm("حذف؟")) { DB[key] = D(key).filter(x => x.id !== b.dataset.del); persist(); return route(current); }
+    if (b.dataset.post) { try { withRollback(() => sc.post(D(key).find(x => x.id === b.dataset.post))); persist(); toast("تم الترحيل ✓"); } catch (err) { alert(err.message); } route(current); } };
+}
+
+/* ================= postings ================= */
+function postNote(r) {
+  const ar = r.side === "C", party = byCode(ar ? "customer" : "vendor", r.party); if (!party) throw new Error((ar ? "العميل" : "المورد") + " مش موجود: " + r.party);
+  const amt = Math.abs(nz(r.amount)), tc = r.taxed ? TC(ar ? "OUT" : "IN") : null, net = tc ? r2(amt / (1 + Number(tc.rate) / 100)) : amt, key = ar ? "arInv" : "apInv";
+  const orig = r.ticket ? DB[key].find(x => x.ticket === r.ticket && x.status === "POSTED" && !x.cn && x.party === party.id) : null;
+  const inv = {id: uid(), date: r.date, party: party.id, cn: r.type === "CN", original: r.type === "CN" && orig ? orig.id : "", ref: r.number, notes: r.reason || "", ticket: r.ticket || "", status: "DRAFT",
+    lines: [{item: "", desc: `${r.type} ${r.number} ${r.reason || ""}`.trim(), acc: needAcc(ar ? OPS().revAcc : OPS().costAcc, ar ? "الإيراد" : "التكلفة"), qty: 1, price: net, tax: tc ? tc.id : ""}]};
+  postInvoice(ar ? "AR" : "AP", inv); DB[key].push(inv); r.inv = inv.number; r.jv = inv.jv; r.status = "POSTED";
+}
+function postIata(r) {
+  const o = OPS(), amt = Math.abs(nz(r.amount)), memo = `${r.type} ${r.number} ${r.ticket || ""} ${r.iataAcc}`, debit = ["ADM","SPDR"].includes(r.type);
+  r.jv = mkJV(r.date, memo, r.number, debit ? [{acc: needAcc(o.admAcc, "مصروف ADM"), dr: amt, memo}, vendLine(o.bspVendor, 0, amt, memo)] : [vendLine(o.bspVendor, amt, 0, memo), {acc: needAcc(o.acmAcc, "حساب ACM"), cr: amt, memo}], "BSP");
+  r.status = "POSTED";
+}
+function postSvc(r) {
+  seedPM(); const it = byCode("item", SVC_ITEM[r.svcType]), cust = byCode("customer", r.customer), vend = r.vendor ? byCode("vendor", r.vendor) : null;
+  if (!it) throw new Error("صنف الخدمة مش موجود: " + SVC_ITEM[r.svcType]); if (!cust) throw new Error("العميل مش موجود");
+  const fx = up(r.currency || "SAR") === "SAR" ? 1 : (nz(r.rate) || fxRateOf(r.currency, r.date)); if (!fx) throw new Error("سعر الصرف ناقص");
+  const desc = `${it.name} ${r.number}${r.hotel ? " — " + r.hotel : ""}${r.checkIn ? ` (${r.checkIn} → ${r.checkOut || ""})` : ""}${r.supConf ? " — " + r.supConf : ""}${fx !== 1 ? ` [${r.currency} × ${fx}]` : ""}`;
+  const so = {id: uid(), date: r.date, party: cust.id, cn: false, original: "", ref: r.bookingId || r.number, notes: "", svc: r.id, status: "DRAFT", lines: [{item: it.id, desc, acc: it.revAccount, qty: 1, price: r2(nz(r.selling) * fx), tax: autoTax(true, cust, it)}]};
+  postInvoice("AR", so); DB.arInv.push(so); r.so = so.number;
+  if (r.svcType !== "PROF" && vend && nz(r.cost)) { const po = {id: uid(), date: r.date, party: vend.id, cn: false, original: "", ref: r.supConf || r.number, notes: "", svc: r.id, status: "DRAFT", lines: [{item: it.id, desc, acc: it.costAccount || it.revAccount, qty: 1, price: r2(nz(r.cost) * fx), tax: autoTax(false, vend, it)}]};
+    postInvoice("AP", po); DB.apInv.push(po); r.po = po.number; }
+  r.status = "POSTED";
+}
+
+/* ================= after Create documents: PO no. = ticket + week, revenue by airline, pending block ================= */
+if (!postTicket.__x2) {
+  const _pt = postTicket;
+  postTicket = function (arg) {
+    const x = typeof arg === "string" ? DB.ticket.find(y => y.id === arg) : arg;
+    if (x && x.pending) return `التذكرة ${x.m.ticket} في شاشة البيانات الناقصة`;
+    const res = _pt.apply(this, arguments);
+    if (!res && x) { try { afterPost(DB.ticket.find(y => y.id === x.id) || x); persist(); } catch (e) { console.warn(e); } }
+    return res;
+  };
+  postTicket.__x2 = true;
+}
+function afterPost(x) {
+  const map = D("revMap").find(m => up(m.airline) === up(x.m.airlineCode)), from = accRec(OPS().revAcc), to = map && accRec(map.acc);
+  (x.docs || []).forEach(no => {
+    const ap = DB.apInv.find(i => i.number === no); if (ap) ap.ref = `${x.m.ticket}-W${String(isoWeek(x.m.issueDate)).padStart(2, "0")}`;
+    const ar = DB.arInv.find(i => i.number === no);
+    if (ar && from && to && from.id !== to.id) { ar.lines.forEach(l => { if (l.acc === from.id) l.acc = to.id; }); const j = DB.journal.find(jj => jj.number === ar.jv); if (j) j.lines.forEach(l => { if (l.acc === from.id) l.acc = to.id; }); }
+  });
+}
+
+/* ================= Akeed OS payments ================= */
+function bookIdx() { const m = new Map();
+  DB.ticket.forEach(x => { const b = digits(x.m.bookingId); if (!b) return; const e = m.get(b) || {sale: 0, refund: 0, dates: [], tickets: []}; const sel = x.calc ? x.calc.selling : 0;
+    if (isRef(x)) e.refund += Math.abs(sel); else e.sale += sel; e.dates.push(x.m.issueDate); e.tickets.push(x.m.ticket); e.user = e.user || x.m.userId || x.m.agent; m.set(b, e); });
+  return m; }
+function validateAos(p, idx) {
+  const pm = pmBy(p.method), tol = nz((pm && pm.tol) || OPS().tolAmt) || 1, b = digits(p.booking), bk = (idx || bookIdx()).get(b);
+  const paid = r2(D("aosPay").filter(q => b && digits(q.booking) === b && q.status !== "Failed" && q.type !== "refund").reduce((a, q) => a + nz(q.amount), 0));
+  p.bookTotal = bk ? r2(bk.sale) : ""; p.paidToDate = paid; p.remaining = bk ? r2(bk.sale - paid) : "";
+  p.payStatus = !bk ? "" : paid > bk.sale + tol ? "Over paid" : Math.abs(paid - bk.sale) <= tol ? "Fully paid" : "Partially paid";
+  if (!pm) { p.gwVal = "Conflict"; p.gwNote = "طريقة الدفع مش متعرّفة في «إعداد البوابات»"; return p; }
+  if (!pm.gateway) { p.gwVal = "Valid"; p.gwNote = "مش بوابة"; return p; }
+  const L2 = D("gwLine"), l1 = L2.find(l => p.aosId && String(l.aosId) === String(p.aosId)), l2 = L2.find(l => p.gwRef && String(l.payId) === String(p.gwRef)), notes = [];
+  if (!l1) { p.gwVal = "Not in import"; p.gwNote = "Akeed OS payment ID مش موجود في ملف البوابة"; p.gwLine = ""; return p; }
+  if ((l2 && l2 !== l1) || (p.gwRef && String(l1.payId) !== String(p.gwRef))) notes.push("Reference conflict");
+  p.gwAmt = l1.amount; p.gwDiff = r2(nz(p.amount) - nz(l1.amount)); p.gwLine = l1.id;
+  if (Math.abs(p.gwDiff) > tol) notes.push("Amount diff");
+  if ((p.type === "refund" || p.status === "Refunded") !== (l1.type === "Refund")) notes.push("Type conflict");
+  if (p.scheme && l1.scheme && normScheme(p.scheme) !== normScheme(l1.scheme)) notes.push("Method conflict");
+  if (b && l1.booking && digits(l1.booking) !== b) notes.push("Booking differs");
+  p.gwVal = !notes.length ? "Valid" : notes.includes("Amount diff") ? "Amount diff" : "Conflict"; p.gwNote = notes.join("، ");
+  l1.matchedPay = p.aosId; return p;
+}
+function postPay(p) {
+  if (p.jv) throw new Error("الدفعة مترحّلة قبل كده"); validateAos(p);
+  const pm = pmBy(p.method); if (!pm) throw new Error("طريقة الدفع مش متعرّفة: " + p.method);
+  if (pm.gateway && p.gwVal !== "Valid") throw new Error(`Gateway validation لازم تكون Valid (الحالية: ${p.gwVal} — ${p.gwNote || ""})`);
+  if (p.payStatus === "Over paid") throw new Error("Over paid: المدفوع أكبر من قيمة الـ booking");
+  const amt = Math.abs(nz(p.amount)), d = p.date || today(), memo = `AOS ${p.aosId} booking ${p.booking || ""}`;
+  const jv = [mkJV(d, "P1 قفل العميل — " + memo, String(p.aosId), [{acc: pm.gateway ? clearingOf(pm) : ledgerOf(pm), dr: amt, memo}, custLine(p.customer, 0, amt, memo)], "GW")];
+  if (pm.gateway) { const f = feeOf(pm.code, normScheme(p.scheme), "Pay", amt); p.fee = f.gross;
+    if (f.gross) jv.push(mkJV(d, `P2 عمولة ${pm.code} — ${memo}`, String(p.aosId), [...taxPair("IN", needAcc(pm.feeAcc, "مصروف العمولة"), f.net, f.vat, "dr", memo), vendLine(pm.vendor, 0, f.gross, memo)], "GW")); }
+  p.jv = jv.join(", ");
+}
+function reversePay(p) {
+  if (!p.jv) throw new Error("لازم الدفعة يتعمل لها Post الأول"); if (p.revJv) throw new Error("الدفعة اتعكست قبل كده");
+  const pm = pmBy(p.method), refund = Math.abs(nz(p.refundAmt) || nz(p.amount)), d = today(), memo = `Refund AOS ${p.aosId} booking ${p.booking || ""}`;
+  let ded = pm.gateway ? tierOf(pm.code, refund) : 0; if (ded >= refund) ded = 0; const sp = splitDed(pm, ded);
+  const L2 = [custLine(p.customer, refund, 0, memo), {acc: pm.gateway ? clearingOf(pm) : ledgerOf(pm), cr: r2(refund - sp.gross), memo}];
+  if (ded) L2.push(...taxPair("OUT", needAcc(pm.otherInc, "الإيراد الآخر"), sp.inc, sp.vat, "cr", memo + " — خصم الاسترداد"));
+  const jv = [mkJV(d, "P3 عكس — " + memo, String(p.aosId), L2, "GW")];
+  if (pm.gateway) { const f = feeOf(pm.code, normScheme(p.scheme), "Refund", refund);
+    if (f.gross) jv.push(mkJV(d, "P4 عمولة الاسترداد — " + memo, String(p.aosId), [...taxPair("IN", needAcc(pm.feeAcc, "مصروف العمولة"), f.net, f.vat, "dr", memo), vendLine(pm.vendor, 0, f.gross, memo)], "GW")); }
+  p.revJv = jv.join(", "); p.refundAmt = refund; p.deduction = ded; p.status = "Refunded";
+}
+const AOS_COLS = [["aosId","Payment ID"],["date","التاريخ"],["booking","Booking ID"],["ticket","التذكرة"],["customer","العميل"],["status","الحالة"],["gateway","Gateway"],["method","طريقة الدفع"],["scheme","Scheme"],["type","النوع"],
+  ["baseFare","Base fare"],["tax","Tax"],["discount","Discount"],["amount","المبلغ"],["gwRef","Gateway reference"],["refundType","Refund type"],["refundAmt","Refund amount"]];
+const AOS_ALIAS = {aosId: ["payment id","id","transaction id","akeed os payment id"], booking: ["booking id","booking"], customer: ["customer","customer code","customer id"], method: ["payment method","method"],
+  gwRef: ["payment reference","gateway payment reference","reference"], amount: ["amount","total"], date: ["date","payment date","created at"], ticket: ["ticket","ticket number"]};
+function renderAos() {
+  seedPM(); const s = fst("aos"), idx = bookIdx();
+  const defs = [...DD, {k: "cust", t: "sel", l: "العميل", opts: custOpts}, {k: "method", t: "sel", l: "طريقة الدفع", opts: () => D("pm").map(p => [p.code, p.code])},
+    {k: "val", t: "sel", l: "Gateway validation", opts: () => [["Valid","Valid"],["Not in import","Not in import"],["Amount diff","Amount diff"],["Conflict","Conflict"]]},
+    {k: "ps", t: "sel", l: "حالة السداد", opts: () => [["Fully paid","Fully paid"],["Partially paid","Partially paid"],["Over paid","Over paid"]]}, {k: "posted", t: "sel", l: "الترحيل", opts: () => [["Y","مترحّل"],["N","مش مترحّل"]]}, {k: "q", t: "text", l: "بحث", ph: "ID / booking / تذكرة"}];
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="pri" id="add">＋ ${t("new")}</button><button id="imp">⬆ ${t("imp")}</button><button id="tpl">⬇ ${t("tpl")}</button><button id="val">✔ Validate</button>
+    <button class="acc" id="post">⚙ Post payment للمحدد</button><button id="rev">↩ Reverse payment</button><button id="exp">📤 ${t("exp")}</button></div>
+  ${helpBox("كل الدفعات اللي جاية من Akeed OS. الربط بملف البوابة بيتم بالمرجعين: <b>Akeed OS payment ID</b> و<b>Gateway reference</b>. «Post payment» بيعمل P1 (قفل العميل) وP2 (العمولة)، ومش بيشتغل غير لما الـ validation تبقى Valid. «Reverse» بيعمل P3 وP4، والخصم بيتحسب حسب شرايح طريقة الدفع. CTA وGR والمحفظة مش محتاجين ملف بوابة.")}
+  ${fp("aos", defs)}<div class="tbl"><table><thead><tr><th class="sel"><input type="checkbox" data-all></th><th>Payment ID</th><th>التاريخ</th><th>العميل</th><th>Booking</th><th>التذكرة</th><th>الطريقة</th><th>Scheme</th><th>النوع</th><th>الحالة</th>
+    <th class="num">المبلغ</th><th class="num">مبلغ البوابة</th><th class="num">الفرق</th><th>Validation</th><th class="num">قيمة الـ booking</th><th class="num">المدفوع</th><th class="num">المتبقي</th><th>السداد</th><th>القيود</th><th>العكس</th></tr></thead><tbody id="tb"></tbody></table></div><div id="sum"></div>`;
+  const SEL = new Set(); let list = [];
+  const draw = () => { D("aosPay").forEach(p => validateAos(p, idx));
+    list = D("aosPay").filter(p => dOk(s, p.date) && (!s.cust || p.customer === s.cust) && (!s.method || up(p.method) === up(s.method)) && (!s.val || p.gwVal === s.val) && (!s.ps || p.payStatus === s.ps) && (!s.posted || (s.posted === "Y") === !!p.jv)
+      && (!s.q || [p.aosId, p.booking, p.ticket, p.gwRef].some(v => String(v || "").toLowerCase().includes(s.q.toLowerCase())))).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    $("#tb").innerHTML = list.slice(0, 1000).map(p => `<tr class="click" data-row="${p.id}"><td class="sel"><input type="checkbox" data-s="${p.id}"${SEL.has(p.id) ? " checked" : ""}></td><td>${esc(p.aosId)}</td><td>${esc(p.date || "")}</td><td>${esc(p.customer || "")}</td><td>${esc(p.booking || "")}</td>
+      <td>${p.ticket ? `<a class="lnk" data-inv="${esc(p.ticket)}">${esc(p.ticket)}</a>` : ""}</td><td>${esc(p.method || "")}</td><td>${esc(p.scheme || "")}</td><td>${esc(p.type || "")}</td><td>${esc(p.status || "")}</td>
+      <td class="num">${fmt(nz(p.amount))}</td><td class="num">${p.gwAmt === undefined || p.gwAmt === "" ? "" : fmt(nz(p.gwAmt))}</td><td class="num ${nz(p.gwDiff) ? "bad" : ""}">${p.gwDiff ? fmt(p.gwDiff) : ""}</td>
+      <td><span class="badge ${p.gwVal === "Valid" ? "b-ready" : "b-error"}" title="${esc(p.gwNote || "")}">${esc(p.gwVal || "")}</span></td><td class="num">${p.bookTotal === "" ? "" : fmt(p.bookTotal)}</td><td class="num">${fmt(p.paidToDate || 0)}</td>
+      <td class="num">${p.remaining === "" ? "" : fmt(p.remaining)}</td><td>${esc(p.payStatus || "")}</td><td>${lnk(p.jv)}</td><td>${lnk(p.revJv)}</td></tr>`).join("") || `<tr><td colspan="20"><div class="empty">مفيش دفعات</div></td></tr>`;
+    $("#sum").innerHTML = sumB([["العدد", list.length], ["المبالغ", fmt(list.reduce((a, p) => a + nz(p.amount), 0))], ["Valid", list.filter(p => p.gwVal === "Valid").length], ["مش مترحّل", list.filter(p => !p.jv).length], ["المحدد", SEL.size]]); };
+  fpOn("aos", draw); draw();
+  const editPay = id => { const p = id ? D("aosPay").find(x => x.id === id) : {id: "", date: today(), status: "Success", type: "ticket", method: "MOYASAR", gateway: "moyasar"};
+    showModal(`<div id="xf"><h3>دفعة Akeed OS ${esc(p.aosId || "")}</h3><div class="xg">${AOS_COLS.map(([k, l]) => `<label class="fld">${l}<input data-k="${k}" type="${k === "date" ? "date" : ["baseFare","tax","discount","amount","refundAmt"].includes(k) ? "number" : "text"}" step="any" value="${esc(p[k] ?? "")}"${p.jv && !["refundAmt","refundType"].includes(k) ? " disabled" : ""}></label>`).join("")}</div>
+      ${p.gwNote ? `<div class="warn" style="margin-top:10px">${esc(p.gwVal)}: ${esc(p.gwNote)}</div>` : ""}<div class="bar" style="margin-top:14px;justify-content:flex-end"><button class="pri" data-save>${t("save")}</button><button data-close>${t("close")}</button></div></div>`);
+    document.getElementById("xf").onclick = e => { if (!e.target.closest("[data-save]")) return; document.querySelectorAll("#xf [data-k]").forEach(i => { if (!i.disabled) p[i.dataset.k] = i.type === "number" ? (i.value === "" ? "" : Number(i.value)) : i.value.trim(); });
+      if (!p.aosId || !p.customer || p.amount === "") return alert("Payment ID والعميل والمبلغ إجباريين");
+      if (D("aosPay").some(q => q !== p && String(q.aosId) === String(p.aosId))) return alert("Payment ID مكرر"); p.method = up(p.method); if (!p.id) { p.id = uid(); D("aosPay").push(p); } persist(); closeModal(); route(current); }; };
+  mainEl.onclick = e => { const cb = e.target.closest("input[data-s],input[data-all]");
+    if (cb) { if (cb.dataset.all !== undefined) list.slice(0, 1000).forEach(p => cb.checked ? SEL.add(p.id) : SEL.delete(p.id)); else cb.checked ? SEL.add(cb.dataset.s) : SEL.delete(cb.dataset.s); return draw(); }
+    const b = e.target.closest("button"); if (!b) { const tr = e.target.closest("tr[data-row]"); if (tr) editPay(tr.dataset.row); return; }
+    if (b.id === "add") return editPay();
+    if (b.id === "tpl") return csv("akeed-os-payments-template", [AOS_COLS.map(c => c[1])]);
+    if (b.id === "exp") return csv("akeed-os-payments", [[...AOS_COLS.map(c => c[1]), "Validation", "Note", "Paid to date", "Remaining", "Payment status", "Journals", "Reversal"], ...list.map(p => [...AOS_COLS.map(c => p[c[0]] ?? ""), p.gwVal, p.gwNote, p.paidToDate, p.remaining, p.payStatus, p.jv || "", p.revJv || ""])]);
+    if (b.id === "val") { draw(); persist(); return toast("اتعمل Validate"); }
+    if (b.id === "imp") return pickFiles(false, files => { if (!files[0].sheets) return alert("ارفع Excel أو CSV"); const rows = objs(files[0].sheets[0].aoa); let n = 0, dup = 0;
+      rows.forEach(o => { const p = {}; AOS_COLS.forEach(([k, l]) => { p[k] = pick(o, [l, k, ...(AOS_ALIAS[k] || [])]); });
+        if (!p.aosId || p.amount === "") return; if (D("aosPay").some(q => String(q.aosId) === String(p.aosId))) { dup++; return; }
+        p.date = xd(p.date); p.amount = nz(p.amount); p.method = up(p.method || p.gateway || ""); p.scheme = normScheme(p.scheme); p.type = String(p.type || "ticket").toLowerCase(); p.status = p.status || "Success"; p.id = uid(); D("aosPay").push(p); n++; });
+      persist(); toast(`اتضاف ${n}، ومتكرر ${dup}`); route(current); });
+    const ids = [...SEL];
+    if (b.id === "post" || b.id === "rev") { if (!ids.length) return toast("حدد دفعات الأول"); let ok = 0; const errs = [];
+      ids.forEach(id => { try { withRollback(() => (b.id === "post" ? postPay : reversePay)(D("aosPay").find(x => x.id === id))); ok++; } catch (err) { errs.push(`${(D("aosPay").find(x => x.id === id) || {}).aosId}: ${err.message}`); } });
+      persist(); route(current); alert(`اتعمل ${ok}` + (errs.length ? `\nفشل ${errs.length}:\n` + errs.slice(0, 8).join("\n") : "")); } };
+}
+
+/* ================= Import payment (gateway file) + Gateway reconciliation ================= */
+function importGw() { seedPM(); const gw = prompt("ملف أنهي بوابة؟ اكتب الكود (MOYASAR أو PAYFORT):", "MOYASAR"); if (!gw) return; if (!pmBy(gw)) return alert("البوابة مش متعرّفة في «إعداد البوابات»");
+  pickFiles(false, files => { if (!files[0].sheets) return alert("ارفع Excel أو CSV"); const rows = objs(files[0].sheets[0].aoa), batch = nextNo("GWB"); let n = 0;
+    rows.forEach(o => { const payId = pick(o, ["payment_id","id","fort_id","payment id","transaction id"]); if (!payId) return;
+      if (D("gwLine").some(l => String(l.payId) === String(payId) && l.gw === up(gw))) return;
+      const st2 = String(pick(o, ["status","type","command","transaction type"])).toLowerCase(), bookRaw = String(pick(o, ["booking id","booking","metadata booking_id","description","order description","merchant_reference"]));
+      D("gwLine").push({id: uid(), batch, gw: up(gw), payId: String(payId), aosId: String(pick(o, ["metadata payment_id","metadata_payment_id","merchant_reference"]) || ""),
+        booking: (bookRaw.match(/\d{5,}/) || [""])[0], amount: Math.abs(nz(pick(o, ["amount","amount (sar)","total","amount sar"]))), fee: nz(pick(o, ["fee","fees","fee amount"])),
+        type: /refund/.test(st2) ? "Refund" : "Pay", scheme: normScheme(pick(o, ["source","scheme","company","payment_option","card type","card brand","source company"])),
+        date: xd(pick(o, ["created_at","date","transaction date"])), user: String(pick(o, ["user id","user_id","metadata user_id"]) || ""), status: "NEW", file: files[0].file}); n++; });
+    validateGw(); persist(); toast(`اتستورد ${n} سطر (${batch})`); route(current); }); }
+function validateGw() { const idx = bookIdx(), o = OPS();
+  D("gwLine").forEach(l => { if (["MATCHED","REVIEWED"].includes(l.status)) return; const pm = pmBy(l.gw), tol = nz((pm && pm.tol) || o.tolAmt) || 1, bk = idx.get(digits(l.booking)), n = [];
+    l.feeSetup = feeOf(l.gw, l.scheme, l.type, l.amount).net; l.feeDiff = l.fee ? r2(l.fee - l.feeSetup) : 0;
+    if (!bk) n.push("Not in tickets");
+    else { if (l.type === "Pay" && Math.abs(l.amount - bk.sale) > tol) n.push(`Amount difference (${fmt(r2(l.amount - bk.sale))})`);
+      if (l.type === "Refund") { if (!bk.refund) n.push("Type conflict"); else { const exp = r2(bk.refund - tierOf(l.gw, bk.refund)); if (Math.abs(l.amount - exp) > tol) n.push(`Refund difference (المتوقع ${fmt(exp)})`); } }
+      const gap = Math.min(...bk.dates.map(d => dayGap(d, l.date))); if (gap > nz(o.tolDays)) n.push(`Date gap (${Math.round(gap)} يوم)`);
+      if (l.user && bk.user && String(l.user) !== String(bk.user)) n.push("User differs (info)"); }
+    l.status = !n.filter(x => !/info/.test(x)).length ? "VALID" : "DIFF"; l.note = n.join("، "); }); }
+function renderGw(recon) {
+  seedPM(); const key = recon ? "gwr" : "gwl", s = fst(key);
+  const defs = [...DD, {k: "gw", t: "sel", l: "البوابة", opts: gwOpts}, {k: "st", t: "sel", l: "الحالة", opts: () => [["VALID","Valid"],["DIFF","فيه فروق"],["MATCHED","Match يدوي"],["REVIEWED","Reviewed"]]},
+    {k: "type", t: "sel", l: "النوع", opts: () => [["Pay","Pay"],["Refund","Refund"]]}, {k: "q", t: "text", l: "بحث", ph: "payment id / booking"}];
+  const lines = D("gwLine"); let extra = "";
+  if (recon) { const have = new Set(lines.map(l => digits(l.booking))), from = s.from || "", to = s.to || "9999";
+    const miss = DB.ticket.filter(x => digits(x.m.bookingId) && !have.has(digits(x.m.bookingId)) && (x.source === "Integration" || /moyas|payf|online/i.test(String(x.m.payMethod || x.m.payCategory || ""))) && (x.m.issueDate || "") >= from && (x.m.issueDate || "") <= to);
+    extra = `<div class="card"><h3>Rule 8 — تذاكر أونلاين في الفترة ملهاش سطر في ملف البوابة (${miss.length})</h3>${miss.length ? `<div class="tbl"><table><thead><tr><th>التذكرة</th><th>Booking</th><th>التاريخ</th><th>العميل</th><th class="num">البيع</th></tr></thead><tbody>${miss.slice(0, 200).map(x => `<tr><td><a class="lnk" data-inv="${esc(x.m.ticket)}">${esc(x.m.ticket)}</a></td><td>${esc(x.m.bookingId)}</td><td>${esc(x.m.issueDate)}</td><td>${esc(x.m.customerCode || "")}</td><td class="num">${x.calc ? fmt(x.calc.selling) : ""}</td></tr>`).join("")}</tbody></table></div>` : '<span class="muted">مفيش</span>'}</div>`; }
+  mainEl.innerHTML = `<div class="bar"><h2></h2>${recon ? "" : `<button class="pri" id="imp">⬆ استيراد ملف البوابة</button>`}<button class="acc" id="val">✔ Validate with tickets</button>${recon ? `<button id="mm">✋ Match manually</button><button id="rv">📝 Reviewed</button>` : ""}<button id="exp">📤 ${t("exp")}</button>${recon ? "" : `<button class="danger" id="del">🗑 حذف المحدد</button>`}</div>
+  ${helpBox(recon ? "المطابقة بالـ Booking ID، لأن الـ booking الواحد ممكن يبقى فيه أكتر من تذكرة. القواعد: الـ booking موجود، والمبلغ = مجموع سعر البيع، والاسترداد = سعر الاسترداد − خصم الشريحة، والنوع، والتاريخ ± أيام الإعداد، والمستخدم (للعلم). أي سطر فيه فرق مايترحّلش لحد ما تعمل له Match يدوي أو Reviewed مع سبب." : "استيراد ملف Moyasar أو Payfort. الـ import مش بيعمل قيود. «Validate with tickets» بيدوّر على كل سطر في شاشة Flights ويكتب النتيجة. عمولة الملف بتتقارن بعمولة الإعداد.")}
+  ${fp(key, defs)}<div class="tbl"><table><thead><tr><th class="sel"><input type="checkbox" data-all></th><th>البوابة</th><th>payment_id</th><th>Akeed OS ID</th><th>Booking</th><th>التاريخ</th><th>النوع</th><th>Scheme</th><th class="num">المبلغ</th><th class="num">عمولة الملف</th><th class="num">عمولة الإعداد</th><th class="num">فرق العمولة</th><th>الحالة</th><th>الملاحظات</th><th>الدفعة المرتبطة</th></tr></thead><tbody id="tb"></tbody></table></div><div id="sum"></div>${extra}`;
+  const SEL = new Set(); let list = [];
+  const draw = () => { list = lines.filter(l => dOk(s, l.date) && (!s.gw || l.gw === s.gw) && (!s.st || l.status === s.st) && (!s.type || l.type === s.type) && (!s.q || [l.payId, l.booking, l.aosId].some(v => String(v || "").includes(s.q))));
+    $("#tb").innerHTML = list.slice(0, 1500).map(l => `<tr><td class="sel"><input type="checkbox" data-s="${l.id}"${SEL.has(l.id) ? " checked" : ""}></td><td>${l.gw}</td><td>${esc(l.payId)}</td><td>${esc(l.aosId)}</td><td>${esc(l.booking)}</td><td>${esc(l.date)}</td><td>${l.type}</td><td>${esc(l.scheme)}</td>
+      <td class="num">${fmt(l.amount)}</td><td class="num">${l.fee ? fmt(l.fee) : ""}</td><td class="num">${fmt(l.feeSetup || 0)}</td><td class="num ${l.feeDiff ? "bad" : ""}">${l.feeDiff ? fmt(l.feeDiff) : ""}</td>
+      <td><span class="badge ${["VALID","MATCHED","REVIEWED"].includes(l.status) ? "b-ready" : "b-error"}">${l.status}</span></td><td style="white-space:normal;font-size:12px">${esc(l.note || "")}</td><td>${esc(l.matchedPay || "")}</td></tr>`).join("") || `<tr><td colspan="15"><div class="empty">مفيش سطور</div></td></tr>`;
+    $("#sum").innerHTML = sumB([["العدد", list.length], ["المبالغ", fmt(list.reduce((a, l) => a + (l.type === "Refund" ? -l.amount : l.amount), 0))], ["Valid", list.filter(l => l.status === "VALID").length], ["فيه فروق", list.filter(l => l.status === "DIFF").length], ["المحدد", SEL.size]]); };
+  fpOn(key, draw); draw();
+  mainEl.onclick = e => { const cb = e.target.closest("input[data-s],input[data-all]");
+    if (cb) { if (cb.dataset.all !== undefined) list.forEach(l => cb.checked ? SEL.add(l.id) : SEL.delete(l.id)); else cb.checked ? SEL.add(cb.dataset.s) : SEL.delete(cb.dataset.s); return draw(); }
+    const b = e.target.closest("button"); if (!b) return; const sel = lines.filter(l => SEL.has(l.id));
+    if (b.id === "imp") return importGw();
+    if (b.id === "val") { validateGw(); persist(); toast("اتعمل Validate"); return route(current); }
+    if (b.id === "mm" || b.id === "rv") { if (!sel.length) return toast("حدد سطور"); const why = prompt(b.id === "mm" ? "رقم التذكرة أو الـ booking اللي اتطابق معاه:" : "سبب المراجعة:"); if (!why) return;
+      sel.forEach(l => { l.status = b.id === "mm" ? "MATCHED" : "REVIEWED"; l.note = (l.note ? l.note + " | " : "") + (b.id === "mm" ? "Match يدوي: " : "Reviewed: ") + why; }); persist(); return route(current); }
+    if (b.id === "del") { if (!sel.length || !confirm(`حذف ${sel.length} سطر؟`)) return; DB.gwLine = lines.filter(l => !SEL.has(l.id)); persist(); return route(current); }
+    if (b.id === "exp") return csv("gateway-lines", [["Gateway","payment_id","AOS ID","Booking","Date","Type","Scheme","Amount","File fee","Setup fee","Fee diff","Status","Note"], ...list.map(l => [l.gw, l.payId, l.aosId, l.booking, l.date, l.type, l.scheme, l.amount, l.fee, l.feeSetup, l.feeDiff, l.status, l.note])]); };
+}
+
+/* ================= Moyasar / Payfort settlement ================= */
+function renderGwSettle() {
+  seedPM(); const s = fst("settle"); s.pm = s.pm || "MOYASAR"; const pm = pmBy(s.pm) || {code: s.pm};
+  const cand = D("aosPay").filter(p => p.jv && !p.settled && up(p.method) === up(s.pm) && dOk(s, p.date));
+  let gross = 0, fees = 0, fileFee = 0;
+  const rows = cand.map(p => { const refundPart = p.revJv ? r2(nz(p.refundAmt) - splitDed(pm, nz(p.deduction)).gross) : 0, l = D("gwLine").find(x => x.id === p.gwLine);
+    const f = feeOf(pm.code, normScheme(p.scheme), "Pay", nz(p.amount)), fr = p.revJv ? feeOf(pm.code, normScheme(p.scheme), "Refund", nz(p.refundAmt)) : {gross: 0};
+    const g = r2(nz(p.amount) - refundPart); gross += g; fees += f.gross + fr.gross; fileFee += l ? nz(l.fee) : 0;
+    return `<tr><td>${esc(p.aosId)}</td><td>${esc(p.date)}</td><td>${esc(p.booking || "")}</td><td>${esc(p.scheme || "")}</td><td class="num">${fmt(nz(p.amount))}</td><td class="num">${refundPart ? fmt(-refundPart) : ""}</td><td class="num">${fmt(f.net)}</td><td class="num">${l && l.fee ? fmt(l.fee) : ""}</td><td class="num ${l && l.fee && Math.abs(l.fee - f.net) > 0.01 ? "bad" : ""}">${l && l.fee ? fmt(r2(l.fee - f.net)) : ""}</td><td class="num">${fmt(r2(f.gross + fr.gross))}</td><td class="num">${fmt(g)}</td></tr>`; });
+  gross = r2(gross); fees = r2(fees); const net = r2(gross - fees), bankAct = s.bank === undefined || s.bank === "" ? net : nz(s.bank), diff = r2(gross - fees - bankAct), tol = nz(pm.tol || OPS().tolAmt) || 1;
+  mainEl.innerHTML = `<div class="bar"><h2></h2><label>البوابة<select id="spm">${gwOpts().map(([c]) => `<option${c === s.pm ? " selected" : ""}>${c}</option>`).join("")}</select></label>
+    <label>من<input type="date" id="sf" value="${esc(s.from || "")}"></label><label>إلى<input type="date" id="stt" value="${esc(s.to || "")}"></label>
+    <label>المبلغ اللي وصل البنك<input type="number" step="any" id="sb" value="${esc(s.bank ?? "")}" placeholder="${fmt(net)}"></label><label>تاريخ التسوية<input type="date" id="sd" value="${esc(s.date || today())}"></label>
+    <button class="acc" id="go">⚙ Validate clearing و Post (S1 + S2)</button><button id="hist">📜 التسويات السابقة</button></div>
+  ${helpBox("الدفعات المترحّلة (P1 وP2) اللي لسه ماتسوّتش. الـ Clearing لازم يساوي العمولة + المبلغ اللي وصل البنك، ولو الفرق أكبر من الـ tolerance الترحيل بيقف. S1: البنك مدين والمورد دائن بالصافي. S2: المورد مدين والـ Clearing دائن بالإجمالي.")}
+  ${kpi([["عدد الدفعات", cand.length], ["إجمالي الـ Clearing", fmt(gross)], ["العمولات + الضريبة", fmt(fees)], ["الصافي المتوقع", fmt(net)], ["المبلغ الفعلي", fmt(bankAct)], ["الفرق", fmt(diff), Math.abs(diff) > tol], ["عمولة الملف", fmt(r2(fileFee))]])}
+  <div class="tbl"><table><thead><tr><th>Payment ID</th><th>التاريخ</th><th>Booking</th><th>Scheme</th><th class="num">المبلغ</th><th class="num">استرداد</th><th class="num">عمولة الإعداد</th><th class="num">عمولة الملف</th><th class="num">الفرق</th><th class="num">العمولة + الضريبة</th><th class="num">Clearing</th></tr></thead><tbody>${rows.join("") || '<tr><td colspan="11"><div class="empty">مفيش دفعات مستنية تسوية</div></td></tr>'}</tbody></table></div>`;
+  const set = (k, v) => { s[k] = v; route(current); };
+  $("#spm").onchange = e => set("pm", e.target.value); $("#sf").onchange = e => set("from", e.target.value); $("#stt").onchange = e => set("to", e.target.value); $("#sb").onchange = e => set("bank", e.target.value); $("#sd").onchange = e => { s.date = e.target.value; };
+  $("#hist").onclick = () => showModal(`<h3>التسويات السابقة</h3><div class="tbl"><table><thead><tr><th>الرقم</th><th>التاريخ</th><th>البوابة</th><th class="num">Clearing</th><th class="num">البنك</th><th>القيود</th></tr></thead><tbody>${D("settlement").map(x => `<tr><td>${x.number}</td><td>${x.date}</td><td>${x.pm}</td><td class="num">${fmt(x.gross)}</td><td class="num">${fmt(x.bank)}</td><td>${lnk(x.jv)}</td></tr>`).join("") || '<tr><td colspan="6">—</td></tr>'}</tbody></table></div><div class="bar" style="justify-content:flex-end;margin-top:10px"><button data-close>${t("close")}</button></div>`);
+  $("#go").onclick = () => { if (!cand.length) return toast("مفيش دفعات"); if (Math.abs(diff) > tol && pm.block !== false) return alert(`الـ Clearing مش قافل: الفرق ${fmt(diff)} أكبر من الـ tolerance ${fmt(tol)}. الترحيل وقف.`);
+    if (!confirm(`ترحيل تسوية ${cand.length} دفعة؟\nS1 بنك ${fmt(bankAct)} | S2 Clearing ${fmt(gross)}`)) return;
+    try { withRollback(() => { const no = nextNo("STL"), d = s.date || today(), memo = `تسوية ${pm.code} ${no}`;
+      const j1 = mkJV(d, "S1 " + memo, no, [{acc: needAcc(pm.bank || "1102", "بنك التسوية"), dr: bankAct, memo}, vendLine(pm.vendor, 0, bankAct, memo)], "GW");
+      const j2 = mkJV(d, "S2 " + memo, no, [vendLine(pm.vendor, gross, 0, memo), {acc: clearingOf(pm), cr: gross, memo}], "GW");
+      cand.forEach(p => { const pp = D("aosPay").find(x => x.id === p.id); if (pp) pp.settled = no; }); D("settlement").push({id: uid(), number: no, date: d, pm: pm.code, gross, fees, bank: bankAct, jv: j1 + ", " + j2}); });
+      persist(); s.bank = ""; toast("اتعملت التسوية ✓"); route(current); } catch (err) { alert(err.message); } };
+}
+
+/* ================= Posting timeline ================= */
+function renderTimeline() {
+  const T = [["I1","Invoice","Sales invoice","Create documents","العميل","الإيراد + ضريبة المخرجات"],["I2","Invoice","Vendor invoice","Create documents","تكلفة التذاكر","المورد"],["I3","Invoice","CTA / GR — العميل","ترحيل CTA / GR","حساب CTA / GR","العميل"],["I4","Invoice","CTA / GR — المورد","ترحيل CTA / GR","المورد","حساب CTA / GR"],
+    ["I5","Invoice","Credit note (refund)","Credit note / Reverse","الإيراد","العميل"],["P1","Payment","قفل العميل","Akeed OS payments › Post","Clearing","العميل"],["P2","Payment","العمولة + ضريبة المدخلات","مع P1","مصروف العمولة + ضريبة المدخلات","مورد البوابة"],
+    ["P3","Payment","عكس (refund)","Akeed OS payments › Reverse","العميل","Clearing + إيراد آخر + ضريبة المخرجات"],["P4","Payment","عمولة الاسترداد","مع P3","مصروف العمولة + ضريبة المدخلات","مورد البوابة"],["S1","Settlement","البنك","Moyasar settlement","البنك","مورد البوابة"],["S2","Settlement","قفل الـ Clearing","بعد Validate clearing","مورد البوابة","Clearing"]];
+  mainEl.innerHTML = `<div class="bar"><h2></h2></div>${helpBox("I = من الفاتورة، P = من الدفعة، S = من التسوية. الـ Import والـ Reconciliation مش بيعملوا قيود، بيعلّموا الفروق بس.")}<div class="tbl"><table><thead><tr><th>#</th><th>المصدر</th><th>القيد</th><th>إمتى</th><th>مدين</th><th>دائن</th></tr></thead><tbody>${T.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+/* ================= AMEX CTA statement ================= */
+const CTA_TYPES = {"1": "Sales", "2": "Agency service fee", "3": "Refund", "4": "Non air", "9": "Wallet"};
+function hv(aoa, label) { for (const r of aoa) { const i = r.findIndex(c => String(c).trim().toLowerCase().startsWith(label.toLowerCase())); if (i < 0) continue;
+  for (let j = i + 1; j < r.length; j++) if (String(r[j]).trim() !== "") return {v: r[j], cr: r.slice(j + 1).some(c => String(c).trim().toUpperCase() === "CR")}; } return {v: "", cr: false}; }
+function parseCta(aoa, file) {
+  const n = l => { const x = hv(aoa, l); return x.cr ? -Math.abs(nz(x.v)) : nz(x.v); };
+  const hdr = {customer: hv(aoa, "Customer Name").v, card: hv(aoa, "Card Number").v, ref: hv(aoa, "Statement ref").v, date: xd(hv(aoa, "Statement Date").v), due: xd(hv(aoa, "Payment Due Date").v),
+    opening: n("Opening Balance"), debits: nz(hv(aoa, "Total New Debits").v), credits: nz(hv(aoa, "Total New Credits").v), payment: nz(hv(aoa, "Payment Received").v), total: n("Total Amount Due")};
+  const hi = aoa.findIndex(r => String(r[0]).trim().toUpperCase().startsWith("ARN")), lines = [];
+  for (let i = hi + 1; hi >= 0 && i < aoa.length; i++) { const r = aoa[i]; if (digits(r[0]).length < 10) continue; const crA = String(r[11]).trim().toUpperCase() === "CR", crV = String(r[13]).trim().toUpperCase() === "CR", amt = nz(r[10]), vat = nz(r[12]);
+    lines.push({arn: String(r[0]), type: String(r[1]).trim(), date: xd(r[2]), pax: String(r[3] || ""), routing: String(r[4] || ""), supplier: String(r[6] || "").trim(), code: String(r[7] || ""), dep: xd(r[8]), voucher: String(r[9] || ""), ticket: k10(r[9]),
+      amount: crA && amt > 0 ? -amt : amt, vat: crV && vat > 0 ? -vat : vat, di: String(r[14] || "").trim()}); }
+  return {id: uid(), file, hdr, lines, imported: today()};
+}
+function renderCta() {
+  const LS = D("ctaStmt"), s = fst("cta"); if (!LS.some(x => x.id === s.id)) s.id = (LS[LS.length - 1] || {}).id; const st2 = LS.find(x => x.id === s.id);
+  let body = '<div class="empty">استورد كشف AMEX (CTA) بنفس صيغة الملف</div>';
+  if (st2) { const h = st2.hdr, calc = r2(h.opening + h.debits - h.credits - h.payment), byT = new Map();
+    st2.lines.forEach(l => { const ref = l.type === "3", key = l.ticket + (ref ? "R" : "S"), e = byT.get(key) || {ticket: l.ticket, ref, sale: 0, fee: 0, vat: 0, other: 0, types: new Set(), pax: l.pax, routing: l.routing, date: l.date};
+      if (l.type === "1" || l.type === "3") e.sale += l.amount; else if (l.type === "2") { e.fee += l.amount; e.vat += l.vat; } else e.other += l.amount; e.types.add(CTA_TYPES[l.type] || l.type); byT.set(key, e); });
+    const recs = [...byT.values()].map(e => { const x = DB.ticket.find(y => k10(y.m.ticket) === e.ticket && isRef(y) === e.ref) || DB.ticket.find(y => k10(y.m.ticket) === e.ticket), tot = r2(e.sale + e.fee + e.other), sys = x && x.calc ? x.calc.selling : null;
+      const d = sys == null ? null : r2(tot - (e.ref ? -Math.abs(sys) : sys)); return {...e, x, tot, sys, diff: d, st: !x ? "Not in system" : Math.abs(d) <= nz(OPS().tolAmt) ? "Matched" : "Amount diff"}; });
+    const fs = s.f || "", shown = recs.filter(r => !fs || r.st === fs), byC = new Map();
+    recs.forEach(r => { const c = r.x ? r.x.m.customerCode : "—", e = byC.get(c) || {n: 0, tot: 0, diff: 0}; e.n++; e.tot += r.tot; e.diff += r.diff || 0; byC.set(c, e); });
+    body = `${kpi([["تاريخ الكشف", h.date], ["الرصيد الافتتاحي", fmt(h.opening)], ["المدين الجديد", fmt(h.debits)], ["الدائن الجديد", fmt(h.credits)], ["المدفوع", fmt(h.payment)], ["المستحق (الكشف)", fmt(h.total)], ["المستحق (محسوب)", fmt(calc), Math.abs(calc - h.total) > 0.05]])}
+      <div class="chips">${["","Matched","Amount diff","Not in system"].map(k => `<button data-cf="${k}" class="${fs === k ? "on" : ""}">${k || "الكل"} (${k ? recs.filter(r => r.st === k).length : recs.length})</button>`).join("")}</div>
+      <div class="tbl"><table><thead><tr><th>التذكرة</th><th>التاريخ</th><th>الراكب</th><th>خط السير</th><th>الأنواع</th><th class="num">تذكرة / استرداد</th><th class="num">رسوم الخدمة</th><th class="num">ضريبتها</th><th class="num">أخرى</th><th class="num">إجمالي الكشف</th><th class="num">بيع السيستم</th><th class="num">الفرق</th><th>العميل</th><th>الحالة</th></tr></thead>
+      <tbody>${shown.map(r => `<tr><td><a class="lnk" data-inv="${esc(r.ticket)}">${esc(r.ticket)}</a></td><td>${esc(r.date)}</td><td>${esc(r.pax)}</td><td>${esc(r.routing)}</td><td style="font-size:12px">${[...r.types].join(" + ")}</td><td class="num">${fmt(r.sale)}</td><td class="num">${fmt(r.fee)}</td><td class="num">${fmt(r.vat)}</td><td class="num">${r.other ? fmt(r.other) : ""}</td>
+        <td class="num">${fmt(r.tot)}</td><td class="num">${r.sys == null ? "" : fmt(r.sys)}</td><td class="num ${r.diff ? "bad" : ""}">${r.diff == null ? "" : fmt(r.diff)}</td><td>${esc(r.x ? r.x.m.customerCode : "")}</td><td><span class="badge ${r.st === "Matched" ? "b-ready" : "b-error"}">${r.st}</span></td></tr>`).join("")}</tbody></table></div>
+      <div class="card" style="margin-top:12px"><h3>تسوية حساب العميل (CTA)</h3><div class="tbl"><table><thead><tr><th>العميل</th><th class="num">عدد التذاكر</th><th class="num">إجمالي الكشف</th><th class="num">الفروق</th></tr></thead><tbody>${[...byC].map(([c, e]) => `<tr><td>${esc(c)}</td><td class="num">${e.n}</td><td class="num">${fmt(e.tot)}</td><td class="num ${Math.abs(e.diff) > 0.05 ? "bad" : ""}">${fmt(r2(e.diff))}</td></tr>`).join("")}</tbody></table></div></div>`;
+    s._recs = recs; }
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="pri" id="imp">⬆ استيراد كشف CTA</button>${LS.length ? `<select id="pick">${LS.map(x => `<option value="${x.id}"${x.id === s.id ? " selected" : ""}>${esc(x.hdr.ref || x.file)} — ${x.hdr.date}</option>`).join("")}</select><button id="exp">📤 ${t("exp")}</button><button class="danger" id="del">🗑 حذف الكشف</button>` : ""}</div>
+  ${helpBox("كشف AMEX للعميل بنظام CTA. الأنواع: 1 بيع، و2 رسوم خدمة الوكالة، و3 استرداد، و4 Non air، و9 Wallet. المبالغ <b>شاملة الضريبة</b>. التذكرة اللي ليها سطر بيع وسطر رسوم خدمة بتتجمع وتتقارن بسعر البيع في السيستم. مثال: 30,845.96 + 1,064.18 = 31,910.14. الترحيل نفسه من شاشة «كشف AMEX CTA» أو «ترحيل CTA / GR».")}${body}`;
+  mainEl.onclick = e => { const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.cf !== undefined) { s.f = b.dataset.cf; return route(current); }
+    if (b.id === "imp") return pickFiles(false, files => { if (!files[0].sheets) return alert("ارفع ملف Excel"); const p = parseCta(files[0].sheets[0].aoa, files[0].file); if (!p.lines.length) return alert("مش لاقي سطور الكشف (عمود ARN)"); LS.push(p); s.id = p.id; persist(); toast(`اتستورد ${p.lines.length} سطر`); route(current); });
+    if (b.id === "del" && confirm("حذف الكشف؟")) { DB.ctaStmt = LS.filter(x => x.id !== s.id); s.id = ""; persist(); return route(current); }
+    if (b.id === "exp" && s._recs) return csv("cta-recon", [["Ticket","Date","Pax","Types","Ticket amount","Service fee","VAT","Other","Statement total","System selling","Diff","Customer","Status"], ...s._recs.map(r => [r.ticket, r.date, r.pax, [...r.types].join("+"), r.sale, r.fee, r.vat, r.other, r.tot, r.sys ?? "", r.diff ?? "", r.x ? r.x.m.customerCode : "", r.st])]); };
+  const pk = $("#pick"); if (pk) pk.onchange = e => { s.id = e.target.value; route(current); };
+}
+
+/* ================= Invoice posting CTA / GR (I3 / I4) ================= */
+const tkMethod = x => { const v = up(x.m.payMethod || x.m.payCategory || ""); return /CTA|AMEX/.test(v) ? "CTA" : /(^|[^A-Z])GR([^A-Z]|$)/.test(v) ? "GR" : ""; };
+const tkCost = x => x.calc ? r2(x.calc.base + x.calc.inVat - x.calc.comm) : 0;
+function postCtaGr(x) {
+  seedPM(); const meth = tkMethod(x), pm = pmBy(meth); if (!pm) throw new Error("طريقة الدفع مش CTA أو GR"); if (x.ctaJv) throw new Error("اترحّل قبل كده");
+  const sell = Math.abs(x.calc.selling), al = findAirline(x.m), ven = al && rec("vendor", al.vendor), cost = tkCost(x), memo = `${meth} ${x.m.ticket}`, d = x.m.issueDate || today(), refund = isRef(x), acc = ledgerOf(pm), J = [];
+  J.push(mkJV(d, "I3 " + memo + " — العميل", x.m.ticket, !refund ? [{acc, dr: sell, memo}, custLine(x.m.customerCode, 0, sell, memo)] : [custLine(x.m.customerCode, sell, 0, memo), {acc, cr: sell, memo}], "AMEX"));
+  if (ven && cost > 0 && up(x.m.costPay || meth) === meth) J.push(mkJV(d, "I4 " + memo + " — المورد", x.m.ticket, !refund ? [vendLine(ven.code, cost, 0, memo), {acc, cr: cost, memo}] : [{acc, dr: cost, memo}, vendLine(ven.code, 0, cost, memo)], "AMEX"));
+  x.ctaJv = J.join(", ");
+}
+function renderInvPost() {
+  const s = fst("ip"), all = DB.ticket.filter(x => x.state === "POSTED" && tkMethod(x));
+  const defs = [...DD, {k: "m", t: "sel", l: "الطريقة", opts: () => [["CTA","CTA"],["GR","GR"]]}, {k: "cust", t: "sel", l: "العميل", opts: custOpts}, {k: "p", t: "sel", l: "الحالة", opts: () => [["N","مش مترحّل"],["Y","مترحّل"]]}];
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="acc" id="go">⚙ ترحيل I3 / I4 للي ظاهر</button></div>${helpBox("الفاتورة بتطلع I1 وI2 من «إنشاء المستندات». هنا بيطلع I3 (حساب CTA / GR مدين والعميل دائن) وI4 (المورد مدين وحساب CTA / GR دائن) للتذاكر اللي اتدفعت CTA أو GR. الحساب بيتاخد من «إعداد البوابات».")}${fp("ip", defs)}
+  <div class="tbl"><table><thead><tr><th>التذكرة</th><th>التاريخ</th><th>العميل</th><th>الطريقة</th><th class="num">البيع</th><th class="num">صافي المورد</th><th>المستندات</th><th>I3 / I4</th></tr></thead><tbody id="tb"></tbody></table></div><div id="sum"></div>`;
+  let list = []; const draw = () => { list = all.filter(x => dOk(s, x.m.issueDate) && (!s.m || tkMethod(x) === s.m) && (!s.cust || x.m.customerCode === s.cust) && (!s.p || (s.p === "Y") === !!x.ctaJv));
+    $("#tb").innerHTML = list.slice(0, 1000).map(x => `<tr><td><a class="lnk" data-inv="${esc(x.m.ticket)}">${esc(x.m.ticket)}</a></td><td>${esc(x.m.issueDate)}</td><td>${esc(x.m.customerCode)}</td><td>${tkMethod(x)}</td><td class="num">${fmt(x.calc.selling)}</td>
+      <td class="num">${fmt(tkCost(x))}</td><td>${lnk((x.docs || []).join(", "))}</td><td>${lnk(x.ctaJv)}</td></tr>`).join("") || '<tr><td colspan="8"><div class="empty">مفيش تذاكر مترحّلة بـ CTA أو GR</div></td></tr>';
+    $("#sum").innerHTML = sumB([["العدد", list.length], ["مش مترحّل", list.filter(x => !x.ctaJv).length], ["البيع", fmt(list.reduce((a, x) => a + x.calc.selling, 0))]]); };
+  fpOn("ip", draw); draw();
+  $("#go").onclick = () => { const todo = list.filter(x => !x.ctaJv); if (!todo.length) return toast("مفيش حاجة مستنية ترحيل"); let ok = 0; const er = [];
+    todo.forEach(x => { try { withRollback(() => postCtaGr(DB.ticket.find(y => y.id === x.id))); ok++; } catch (e) { er.push(x.m.ticket + ": " + e.message); } }); persist(); route(current); alert(`اترحّل ${ok}` + (er.length ? `\n${er.slice(0, 8).join("\n")}` : "")); };
+}
+
+/* ================= AR Sharing ================= */
+function renderShare() {
+  const s = fst("share"), x = s.q ? DB.ticket.find(y => k10(y.m.ticket) === k10(s.q) && !isRef(y)) : null, LS = x ? D("arShare").filter(l => l.ticketId === x.id) : [];
+  const sell = x && x.calc ? Math.abs(x.calc.selling) : 0, vr = x && x.calc && sell ? (x.calc.ticketVat + x.calc.sfVat) / sell : 0, tot = r2(LS.reduce((a, l) => a + nz(l.total), 0)), diff = r2(sell - tot);
+  mainEl.innerHTML = `<div class="bar"><h2></h2><input id="q" placeholder="رقم التذكرة" value="${esc(s.q || "")}" style="max-width:220px"><button class="acc" id="ld">⟳ تحميل</button>${x ? `<button id="addl">＋ سطر</button><button class="pri" id="mk">⚙ Create AR sharing sales orders</button>` : ""}</div>
+  ${helpBox("فاتورة لعميلين أو أكتر على نفس الحجز، زي شركة 4,000 وموظف 3,000. مجموع الإجمالي لازم يساوي سعر البيع. كل سطر بياخد رقم SO-AR، وبيتعمل قيد بينقل المبلغ من العميل الأصلي للعملاء المشتركين. الضريبة بتتعرض بنفس نسبة الفاتورة الأصلية.")}
+  ${s.q && !x ? '<div class="empty">التذكرة مش موجودة</div>' : ""}
+  ${x ? `${kpi([["التذكرة", esc(x.m.ticket)], ["العميل الأصلي", esc(x.m.customerCode)], ["سعر البيع", fmt(sell)], ["الموزّع", fmt(tot)], ["الفرق", fmt(diff), Math.abs(diff) > 0.01], ["حالة التذكرة", x.state]])}
+  <div class="tbl"><table><thead><tr><th>#</th><th>النوع</th><th>العميل</th><th>رقم الموظف</th><th class="num">%</th><th class="num">قبل الضريبة</th><th class="num">الضريبة</th><th class="num">الإجمالي</th><th>طريقة الدفع</th><th>Payment ID</th><th>SO-AR</th><th>القيد</th><th>الحالة</th><th></th></tr></thead>
+  <tbody>${LS.map((l, i) => { const lock = l.status !== "Draft"; return `<tr data-l="${l.id}"><td>${i + 1}</td><td><select data-f="shareType"${lock ? " disabled" : ""}>${["Company","Employee","Other"].map(o => `<option${l.shareType === o ? " selected" : ""}>${o}</option>`).join("")}</select></td>
+    <td><select data-f="customer"${lock ? " disabled" : ""}><option></option>${custOpts().map(([a, b]) => `<option value="${esc(a)}"${l.customer === a ? " selected" : ""}>${esc(b)}</option>`).join("")}</select></td><td><input data-f="emp" value="${esc(l.emp || "")}" style="width:110px"${lock ? " disabled" : ""}></td>
+    <td><input data-f="pct" type="number" step="any" value="${esc(l.pct ?? "")}" style="width:70px"${lock ? " disabled" : ""}></td><td class="num">${fmt(r2(nz(l.total) - nz(l.total) * vr))}</td><td class="num">${fmt(r2(nz(l.total) * vr))}</td>
+    <td><input data-f="total" type="number" step="any" value="${esc(l.total ?? "")}" style="width:110px"${lock ? " disabled" : ""}></td><td><input data-f="method" value="${esc(l.method || "")}" style="width:90px"${lock ? " disabled" : ""}></td><td><input data-f="payId" value="${esc(l.payId || "")}" style="width:100px"${lock ? " disabled" : ""}></td>
+    <td>${esc(l.so || "")}</td><td>${lnk(l.jv)}</td><td>${l.status}</td><td>${lock ? "" : `<button class="sm danger" data-dl="${l.id}">✕</button>`}</td></tr>`; }).join("") || '<tr><td colspan="14"><div class="empty">ضيف سطور التوزيع</div></td></tr>'}</tbody></table></div>` : ""}`;
+  const ld = () => { s.q = $("#q").value.trim(); route(current); }; $("#q").onkeydown = e => { if (e.key === "Enter") ld(); }; $("#ld").onclick = ld;
+  mainEl.onchange = e => { const tr = e.target.closest("tr[data-l]"), f = e.target.dataset.f; if (!tr || !f) return; const l = D("arShare").find(z => z.id === tr.dataset.l);
+    l[f] = e.target.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value; if (f === "pct" && nz(l.pct)) l.total = r2(sell * nz(l.pct) / 100); persist(); route(current); };
+  mainEl.onclick = e => { const b = e.target.closest("button"); if (!b || !x) return;
+    if (b.id === "addl") { D("arShare").push({id: uid(), ticketId: x.id, shareType: LS.length ? "Employee" : "Company", customer: LS.length ? "" : x.m.customerCode, total: LS.length ? Math.max(0, diff) : sell, status: "Draft"}); persist(); return route(current); }
+    if (b.dataset.dl) { DB.arShare = D("arShare").filter(z => z.id !== b.dataset.dl); persist(); return route(current); }
+    if (b.id === "mk") { const dr = LS.filter(l => l.status === "Draft"); if (!dr.length) return toast("مفيش سطور Draft"); if (Math.abs(diff) > 0.01) return alert(`مجموع الإجمالي (${fmt(tot)}) لازم يساوي سعر البيع (${fmt(sell)})`);
+      if (dr.some(l => !l.customer)) return alert("اختار العميل في كل سطر"); if (x.state !== "POSTED") return alert("لازم التذكرة يتعمل لها «إنشاء المستندات» الأول");
+      try { withRollback(() => dr.forEach(l0 => { const l = D("arShare").find(z => z.id === l0.id); l.so = nextNo("SO-AR"); const memo = `AR sharing ${l.so} ${x.m.ticket} ${l.shareType}`;
+        if (l.customer !== x.m.customerCode) l.jv = mkJV(x.m.issueDate || today(), memo, l.so, [custLine(l.customer, nz(l.total), 0, memo), custLine(x.m.customerCode, 0, nz(l.total), memo)], "AR");
+        l.status = "Invoiced"; })); persist(); toast("اتعملت AR sharing sales orders ✓"); route(current); } catch (err) { alert(err.message); } } };
+}
+
+/* ================= Reverse (SO / PO / both) ================= */
+function renderReverse() {
+  const s = fst("rev"), xs = s.q ? DB.ticket.filter(y => k10(y.m.ticket) === k10(s.q)) : [];
+  const docs = xs.flatMap(x => (x.docs || []).map(no => ({x, no, ar: DB.arInv.find(i => i.number === no), ap: DB.apInv.find(i => i.number === no)}))).filter(d => d.ar || d.ap);
+  mainEl.innerHTML = `<div class="bar"><h2></h2><input id="q" placeholder="رقم التذكرة" value="${esc(s.q || "")}" style="max-width:220px"><button class="acc" id="ld">⟳ تحميل</button></div>
+  ${helpBox("اختار تعكس الـ SO (فاتورة العميل) أو الـ PO (فاتورة المورد) أو الاتنين. بيتعمل قيد عكسي بنفس المبالغ والضريبة. لو اخترت «إعادة فتح التذكرة»، التذكرة بترجع «جاهز» عشان يتعمل لها سطر جديد. أي عكس لازم يكون له سبب.")}
+  ${s.q && !docs.length ? '<div class="empty">مفيش مستندات مترحّلة للتذكرة دي</div>' : ""}
+  ${docs.length ? `<div class="tbl"><table><thead><tr><th class="sel"></th><th>المستند</th><th>النوع</th><th>التاريخ</th><th class="num">الإجمالي</th><th>القيد</th><th>معكوس بـ</th></tr></thead><tbody>${docs.map(d => { const inv = d.ar || d.ap, done = inv.reversedJv || (DB.journal.find(j => j.number === inv.jv) || {}).reversedBy;
+    return `<tr><td class="sel">${done ? "" : `<input type="checkbox" data-no="${esc(d.no)}" checked>`}</td><td>${lnk(d.no)}</td><td>${d.ar ? (d.ar.cn ? "CN عميل" : "SO") : (d.ap.cn ? "CN مورد" : "PO")}</td><td>${inv.date}</td><td class="num">${fmt(invTotals(inv).total)}</td><td>${lnk(inv.jv)}</td><td>${lnk(done)}</td></tr>`; }).join("")}</tbody></table></div>
+  <div class="card" style="margin-top:12px"><div class="xg"><label class="fld">النطاق<select id="scope"><option value="BOTH">الاتنين (SO + PO)</option><option value="SO">SO بس</option><option value="PO">PO بس</option></select></label><label class="fld">تاريخ العكس<input type="date" id="d" value="${today()}"></label>
+  <label class="fld">السبب *<input id="why"></label><label class="fld" style="flex-direction:row;align-items:center;gap:6px;color:var(--text)"><input type="checkbox" id="reo"> إعادة فتح التذكرة لسطر جديد</label></div><div class="bar" style="margin-top:10px;position:static;border:0;box-shadow:none;padding:0"><button class="acc" id="go">↩ Reverse</button></div></div>` : ""}`;
+  const ld = () => { s.q = $("#q").value.trim(); route(current); }; $("#q").onkeydown = e => { if (e.key === "Enter") ld(); }; $("#ld").onclick = ld;
+  const go = $("#go"); if (go) go.onclick = () => { const why = $("#why").value.trim(), d = $("#d").value, sc = $("#scope").value, reo = $("#reo").checked; if (!why) return alert("اكتب السبب");
+    const sel = [...mainEl.querySelectorAll("input[data-no]:checked")].map(i => i.dataset.no).map(no => docs.find(z => z.no === no)).filter(z => sc === "BOTH" || (sc === "SO" ? z.ar : z.ap)).map(z => z.no);
+    if (!sel.length) return toast("مفيش مستندات مختارة");
+    try { withRollback(() => { sel.forEach(no => { const inv = DB.arInv.find(i => i.number === no) || DB.apInv.find(i => i.number === no), j = DB.journal.find(jj => jj.number === inv.jv);
+        if (!j) throw new Error("القيد مش موجود: " + inv.jv); const rv = reverseJournal(j, d); rv.desc += " — " + why; inv.reversedJv = rv.number; inv.reverseReason = why; });
+      if (reo) DB.ticket.filter(y => k10(y.m.ticket) === k10(s.q)).forEach(x => { x.prevDocs = [...(x.prevDocs || []), ...(x.docs || [])]; x.docs = []; x.revSeq = (x.revSeq || 0) + 1; x.state = "NEW"; x.ctaJv = ""; processTicket(x); }); });
+      persist(); toast("اتعكس ✓"); route(current); } catch (err) { alert(err.message); } };
+}
+
+/* ================= AIR files ================= */
+function renderAir() {
+  const LS = D("airFile"), have = new Set(DB.ticket.map(x => k10(x.m.ticket)));
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="pri" id="imp">⬆ رفع ملفات AIR (أكتر من ملف)</button></div>${helpBox("ارفع أكتر من ملف AIR مرة واحدة. السيستم بيقرأ أرقام التذاكر من كل ملف، ويعرّفك أنهي تذاكر مش موجودة في Flights. سطور الملف بتتحفظ معاه للمراجعة.")}
+  <div class="tbl"><table><thead><tr><th>الملف</th><th>تاريخ الرفع</th><th class="num">السطور</th><th class="num">التذاكر</th><th class="num">مش موجودة في السيستم</th><th></th></tr></thead><tbody>${LS.map(f => `<tr><td>${esc(f.file)}</td><td>${f.date}</td><td class="num">${f.lines}</td><td class="num">${f.tickets.length}</td>
+    <td class="num ${f.tickets.some(x => !have.has(x)) ? "bad" : ""}">${f.tickets.filter(x => !have.has(x)).length}</td><td><button class="sm" data-v="${f.id}">عرض</button> <button class="sm danger" data-d="${f.id}">${t("del")}</button></td></tr>`).join("") || '<tr><td colspan="6"><div class="empty">مفيش ملفات</div></td></tr>'}</tbody></table></div>`;
+  mainEl.onclick = e => { const b = e.target.closest("button"); if (!b) return;
+    if (b.id === "imp") return pickFiles(true, files => { files.forEach(f => { const text = f.text || (f.sheets || []).map(s2 => s2.aoa.map(r => r.join("\t")).join("\n")).join("\n"), rows = text.split(/\r?\n/);
+      const tks = [...new Set([...text.matchAll(/T-?K?(\d{3})-?(\d{10})/g)].map(m => m[2]).concat([...text.matchAll(/\b\d{3}[- ]?(\d{10})\b/g)].map(m => m[1])))];
+      LS.push({id: uid(), file: f.file, date: today(), lines: rows.length, tickets: tks, raw: rows.slice(0, 3000)}); }); persist(); toast(`اترفع ${files.length} ملف`); route(current); });
+    if (b.dataset.d && confirm("حذف؟")) { DB.airFile = LS.filter(f => f.id !== b.dataset.d); persist(); return route(current); }
+    if (b.dataset.v) { const f = LS.find(z => z.id === b.dataset.v); showModal(`<h3>${esc(f.file)}</h3><div class="tbl" style="max-height:300px"><table><thead><tr><th>التذكرة</th><th>في السيستم</th></tr></thead><tbody>${f.tickets.map(x => `<tr><td>${have.has(x) ? `<a class="lnk" data-inv="${x}">${x}</a>` : x}</td><td>${have.has(x) ? "✓" : '<span class="bad">لأ</span>'}</td></tr>`).join("")}</tbody></table></div>
+      <h4>أول سطور الملف</h4><pre style="max-height:240px;overflow:auto;background:#faf9f8;padding:8px;font-size:11px;direction:ltr">${esc(f.raw.slice(0, 200).join("\n"))}</pre><div class="bar" style="justify-content:flex-end"><button data-close>${t("close")}</button></div>`); } };
+}
+
+/* ================= Master data helpers ================= */
+function renderPendingMd() {
+  const cu = new Map(), al = new Map();
+  DB.ticket.forEach(x => { if (x.m.customerCode && !byCode("customer", x.m.customerCode)) { const e = cu.get(x.m.customerCode) || {name: x.m.customerName || "", n: 0}; e.n++; cu.set(x.m.customerCode, e); }
+    const a = x.m.airlineCode || x.m.airlineNum; if (a && !findAirline(x.m)) { const e = al.get(a) || {n: 0}; e.n++; al.set(a, e); } });
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="pri" id="mkAll">＋ إنشاء كل العملاء الناقصين</button><button id="exp">📤 ${t("exp")} (للإيميل)</button></div>${helpBox("العملاء وشركات الطيران اللي جايين في ملفات التذاكر ومش موجودين في الماستر. صدّر القايمة وابعتها بالإيميل عشان تجيب بياناتهم، أو أنشئ العملاء مباشرة وكمّل بياناتهم بعدين من «كل العملاء».")}
+  <div class="card"><h3>عملاء معلّقين (${cu.size})</h3><div class="tbl"><table><thead><tr><th>الكود</th><th>الاسم من الملف</th><th class="num">عدد التذاكر</th><th></th></tr></thead><tbody>${[...cu].map(([c, e]) => `<tr><td>${esc(c)}</td><td>${esc(e.name)}</td><td class="num">${e.n}</td><td><button class="sm" data-mk="${esc(c)}">إنشاء</button></td></tr>`).join("") || '<tr><td colspan="4">—</td></tr>'}</tbody></table></div></div>
+  <div class="card"><h3>شركات طيران / موردين معلّقين (${al.size})</h3><div class="tbl"><table><thead><tr><th>الكود</th><th class="num">عدد التذاكر</th></tr></thead><tbody>${[...al].map(([c, e]) => `<tr><td>${esc(c)}</td><td class="num">${e.n}</td></tr>`).join("") || '<tr><td colspan="2">—</td></tr>'}</tbody></table></div></div>`;
+  const grp = (byCode("custGroup", "B2C") || DB.custGroup[0] || {}).id || "", tg = (byCode("taxGroup", "DOM") || {}).id || "";
+  const mk = c => { if (!byCode("customer", c)) DB.customer.push({id: uid(), code: c, name: (cu.get(c) || {}).name || c, nameAr: "", category: "B2C", group: grp, taxGroup: tg, vat: "", payTerm: "", creditLimit: 0, blocked: false}); };
+  const recheck = () => DB.ticket.forEach(x => { if (x.state !== "POSTED") processTicket(x); });
+  mainEl.onclick = e => { const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.mk) { mk(b.dataset.mk); recheck(); persist(); return route(current); }
+    if (b.id === "mkAll") { [...cu.keys()].forEach(mk); recheck(); persist(); toast(`اتعمل ${cu.size} عميل`); return route(current); }
+    if (b.id === "exp") return csv("pending-master", [["Type","Code","Name","Tickets"], ...[...cu].map(([c, e]) => ["Customer", c, e.name, e.n]), ...[...al].map(([c, e]) => ["Airline/Vendor", c, "", e.n])]); };
+}
+function renderMissing() {
+  const req = c => { const rr = D("custReq"), sp = rr.find(z => up(z.customer) === up(c)), all = rr.find(z => z.customer === "*"); return String((sp || all || {fields: "customerCode,issueDate"}).fields).split(/[,;\s]+/).filter(Boolean); };
+  const rows = DB.ticket.filter(x => x.state !== "POSTED").map(x => ({x, miss: req(x.m.customerCode).filter(f => String(x.m[f] ?? "").trim() === "")})).filter(r => r.miss.length || r.x.pending);
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="acc" id="mv">⏸ نقل الناقص للانتظار</button><button id="rel">▶ رجّع المكتمل</button><button id="exp">📤 ${t("exp")}</button></div>${helpBox("التذاكر اللي ناقصها حقول إجبارية حسب إعداد كل عميل (شاشة «الحقول الإجبارية لكل عميل»). التذكرة اللي في الانتظار ماتترحّلش لحد ما بياناتها تكمل، وماتروحش «Not reported sales».")}
+  <div class="tbl"><table><thead><tr><th>التذكرة</th><th>العميل</th><th>التاريخ</th><th>الحقول الناقصة</th><th>في الانتظار</th></tr></thead><tbody>${rows.map(r => `<tr><td><a class="lnk" data-inv="${esc(r.x.m.ticket)}">${esc(r.x.m.ticket)}</a></td><td>${esc(r.x.m.customerCode || "")}</td><td>${esc(r.x.m.issueDate || "")}</td><td class="bad">${esc(r.miss.join("، "))}</td><td>${r.x.pending ? "⏸" : ""}</td></tr>`).join("") || '<tr><td colspan="5"><div class="empty">كل التذاكر بياناتها كاملة</div></td></tr>'}</tbody></table></div>`;
+  mainEl.onclick = e => { const b = e.target.closest("button"); if (!b) return;
+    if (b.id === "mv") { rows.forEach(r => { if (r.miss.length) r.x.pending = true; }); persist(); return route(current); }
+    if (b.id === "rel") { DB.ticket.forEach(x => { if (x.pending && !req(x.m.customerCode).some(f => String(x.m[f] ?? "").trim() === "")) x.pending = false; }); persist(); return route(current); }
+    if (b.id === "exp") return csv("missing-data", [["Ticket","Customer","Date","Missing"], ...rows.map(r => [r.x.m.ticket, r.x.m.customerCode, r.x.m.issueDate, r.miss.join(" ")])]); };
+}
+function renderCodeUpload() {
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="pri" id="imp">⬆ رفع ملف الأكواد</button><button id="tpl">⬇ ${t("tpl")}</button></div>${helpBox("رفع كود Akeed OS (بدل Tracks) للعملاء والموردين والموظفين. الأعمدة: type (customer / vendor / worker)، وcode، وakeedOs.")}`;
+  $("#tpl").onclick = () => csv("akeed-os-codes-template", [["type","code","akeedOs"], ["customer","C0001","AOS-123"]]);
+  $("#imp").onclick = () => pickFiles(false, files => { if (!files[0].sheets) return alert("ارفع Excel أو CSV"); let n = 0, miss = 0;
+    objs(files[0].sheets[0].aoa).forEach(o => { const ty = String(pick(o, ["type"])).toLowerCase(), code = String(pick(o, ["code"])), v = String(pick(o, ["akeedos","akeed os","akeed os code"]));
+      const list = ty.startsWith("v") ? DB.vendor : ty.startsWith("w") ? D("worker") : DB.customer, r = list.find(z => String(z.code) === code); if (r) { r.akeedOs = v; n++; } else miss++; });
+    persist(); alert(`اتحدّث ${n}، ومش موجود ${miss}`); });
+}
+function renderOpSet() {
+  const o = OPS(), F = [["revAcc","حساب الإيراد (للإشعارات وتحويل الإيراد)"],["costAcc","حساب التكلفة (لإشعارات الموردين)"],["admAcc","مصروف ADM / SPDR"],["acmAcc","حساب ACM / SPCR"],["bspVendor","كود مورد BSP"],
+    ["tolAmt","Tolerance المبلغ"],["tolDays","Tolerance الأيام (البوابات)"],["aosEmail","إيميل Akeed OS (للفروقات)"]];
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button class="pri" id="sv">${t("save")}</button></div>${helpBox("أكواد الحسابات اللي بتستخدمها شاشات العمليات. حسابات العملاء والموردين بتيجي من ملفات الترحيل، والضريبة من أكواد ضريبة المبيعات. حسابات البوابات من «إعداد البوابات».")}
+  <div class="card"><div class="xg">${F.map(([k, l]) => `<label class="fld">${l}<input data-k="${k}" value="${esc(o[k] ?? "")}">${/Acc$/.test(k) && o[k] ? `<small class="${accRec(o[k]) ? "" : "bad"}">${accRec(o[k]) ? esc(accRec(o[k]).nameAr || accRec(o[k]).name || "") : "مش موجود"}</small>` : ""}</label>`).join("")}
+  <label class="fld">إنشاء المستندات<select data-k="docMode"><option value="PER_TICKET"${o.docMode === "PER_TICKET" ? " selected" : ""}>SO لكل تذكرة (Day 4)</option><option value="GROUP"${o.docMode === "GROUP" ? " selected" : ""}>SO واحد للمحدد (Day 6، مستني قرار)</option></select></label></div></div>`;
+  $("#sv").onclick = () => { mainEl.querySelectorAll("[data-k]").forEach(i => { o[i.dataset.k] = ["tolAmt","tolDays"].includes(i.dataset.k) ? nz(i.value) : i.value.trim(); }); persist(); toast("اتحفظ ✓"); route(current); };
+}
+
+/* ================= Reports ================= */
+function salesRows() { const out = [], vr = Math.round(vatRate() * 100);
+  DB.ticket.forEach(x => { if (!x.calc) return; const c = x.calc, m = x.m, ref = isRef(x), cu = byCode("customer", m.customerCode), sg = ref ? -1 : 1;
+    out.push({date: m.issueDate, type: "FLIGHT", kind: ref ? "Refund" : "Sale", doc: (x.docs || [])[0] || "", ticket: m.ticket, pnr: m.pnr || "", cust: m.customerCode || "", custName: cu ? cu.name : (m.customerName || ""), agent: String(m.agent || ""),
+      base: sg * c.base, sf: sg * c.sf, vat: sg * r2(c.ticketVat + c.sfVat), rate: c.dom ? vr : 0, selling: sg * c.selling, cost: sg * tkCost(x), profit: sg * r2(c.sf + c.comm),
+      posted: x.state === "POSTED", routing: routeText(m), scope: c.dom ? "DOM" : "INTL", segs: (routeText(m).match(/\//g) || []).length, fileSf: nz(num(m.serviceFee)), x}); });
+  D("svcOrder").filter(r => r.so).forEach(r => { const inv = DB.arInv.find(i => i.number === r.so), po = r.po && DB.apInv.find(i => i.number === r.po); if (!inv) return; const tt = invTotals(inv), cost = po ? invTotals(po).net : 0, cu = byCode("customer", r.customer);
+    out.push({date: r.date, type: r.svcType, kind: "Sale", doc: r.so, ticket: r.bookingId || r.number, pnr: r.supConf || "", cust: r.customer, custName: cu ? cu.name : "", agent: r.agent || "", base: tt.net, sf: 0, vat: tt.tax, rate: tt.net ? Math.round(tt.tax / tt.net * 100) : 0, selling: tt.total, cost, profit: r2(tt.net - cost), posted: true}); });
+  D("noteDoc").filter(n => n.side === "C" && n.inv).forEach(n => { const inv = DB.arInv.find(i => i.number === n.inv); if (!inv) return; const tt = invTotals(inv), sg = n.type === "CN" ? -1 : 1;
+    out.push({date: n.date, type: "NOTE", kind: n.type, doc: n.inv, ticket: n.ticket || "", pnr: "", cust: n.party, custName: "", agent: "", base: sg * tt.net, sf: 0, vat: sg * tt.tax, rate: tt.net ? Math.round(tt.tax / tt.net * 100) : 0, selling: sg * tt.total, cost: 0, profit: 0, posted: true}); });
+  return out; }
+const typeLbl = k => (SVC_T.find(s2 => s2[0] === k) || [k, k === "NOTE" ? "CN / DN" : k])[1];
+function reportShell(key, defs, build) {
+  const s = fst(key);
+  mainEl.innerHTML = `<div class="bar"><h2></h2><button id="exp">📤 ${t("exp")}</button><button id="prn">🖨 طباعة</button></div>${fp(key, defs)}<div id="rep"></div>`;
+  let last = null; const draw = () => { last = build(s); $("#rep").innerHTML = last.html; }; fpOn(key, draw); draw();
+  $("#exp").onclick = () => last && last.rows && csv(key, last.rows); $("#prn").onclick = () => window.print();
+  $("#rep").onclick = e => { const tr = e.target.closest("tr[data-drill]"); if (tr && last.drill) last.drill(tr.dataset.drill); };
+}
+const typeDefs = () => SVC_T.concat([["NOTE","CN / DN"]]).map(([k, l]) => ({k: "t_" + k, t: "bool", l}));
+const typeOk = (s, r) => { const on = Object.keys(s).filter(k => k.startsWith("t_") && s[k]); return !on.length || on.includes("t_" + r.type); };
+const T = (rows, k) => fmt(rows.reduce((a, r) => a + nz(r[k]), 0));
+function rDaily() { reportShell("rDaily", [...DD, {k: "mode", t: "sel", l: "شكل التقرير", opts: () => [["S","ملخص"],["D","تفصيلي"]]}, {k: "cust", t: "sel", l: "العميل", opts: custOpts}, {k: "kind", t: "sel", l: "بيع / استرداد", opts: () => [["Sale","بيع"],["Refund","استرداد"],["CN","CN"],["DN","DN"]]}, {k: "agent", t: "text", l: "الموظف"}, ...typeDefs()], s => {
+  const L2 = salesRows().filter(r => dOk(s, r.date) && typeOk(s, r) && (!s.cust || r.cust === s.cust) && (!s.kind || r.kind === s.kind) && (!s.agent || r.agent.includes(s.agent)));
+  if (s.mode === "D") { const H = ["التاريخ","الخدمة","النوع","المستند","التذكرة / Booking","PNR","العميل","الموظف","الأساس","رسوم الخدمة","الضريبة","البيع","التكلفة","الربح"];
+    return {rows: [H, ...L2.map(r => [r.date, typeLbl(r.type), r.kind, r.doc, r.ticket, r.pnr, r.cust, r.agent, r.base, r.sf, r.vat, r.selling, r.cost, r.profit])],
+      html: `<div class="tbl"><table><thead><tr>${H.map((h, i) => `<th class="${i > 7 ? "num" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${L2.slice(0, 3000).map(r => `<tr><td>${r.date}</td><td>${typeLbl(r.type)}</td><td>${r.kind}</td><td>${lnk(r.doc)}</td><td>${r.type === "FLIGHT" ? `<a class="lnk" data-inv="${esc(r.ticket)}">${esc(r.ticket)}</a>` : esc(r.ticket)}</td><td>${esc(r.pnr)}</td><td>${esc(r.cust)}</td><td>${esc(r.agent)}</td><td class="num">${fmt(r.base)}</td><td class="num">${fmt(r.sf)}</td><td class="num">${fmt(r.vat)}</td><td class="num">${fmt(r.selling)}</td><td class="num">${fmt(r.cost)}</td><td class="num">${fmt(r.profit)}</td></tr>`).join("")}</tbody></table></div>${sumB([["العدد", L2.length], ["البيع", T(L2, "selling")], ["الضريبة", T(L2, "vat")], ["الربح", T(L2, "profit")]])}`}; }
+  const g = new Map(); L2.forEach(r => { const k = r.date + "|" + r.type + "|" + r.kind, e = g.get(k) || {date: r.date, type: r.type, kind: r.kind, n: 0, base: 0, sf: 0, vat: 0, selling: 0, profit: 0}; e.n++; ["base","sf","vat","selling","profit"].forEach(f => e[f] += nz(r[f])); g.set(k, e); });
+  const G = [...g.values()].sort((a, b) => String(a.date).localeCompare(String(b.date))), H = ["التاريخ","الخدمة","النوع","العدد","الأساس","رسوم الخدمة","الضريبة","البيع","الربح"];
+  return {rows: [H, ...G.map(e => [e.date, typeLbl(e.type), e.kind, e.n, r2(e.base), r2(e.sf), r2(e.vat), r2(e.selling), r2(e.profit)])],
+    html: `<div class="tbl"><table><thead><tr>${H.map((h, i) => `<th class="${i > 2 ? "num" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${G.map(e => `<tr><td>${e.date}</td><td>${typeLbl(e.type)}</td><td>${e.kind}</td><td class="num">${e.n}</td><td class="num">${fmt(e.base)}</td><td class="num">${fmt(e.sf)}</td><td class="num">${fmt(e.vat)}</td><td class="num">${fmt(e.selling)}</td><td class="num">${fmt(e.profit)}</td></tr>`).join("")}</tbody></table></div>${sumB([["العدد", L2.length], ["البيع", T(L2, "selling")], ["الضريبة", T(L2, "vat")], ["الربح", T(L2, "profit")]])}`}; }); }
+function rItem() { reportShell("rItem", [...DD, {k: "cust", t: "sel", l: "العميل", opts: custOpts}, ...typeDefs()], s => {
+  if (!s.cust) return {html: '<div class="empty">اختار العميل</div>'};
+  const L2 = salesRows().filter(r => r.cust === s.cust && dOk(s, r.date) && typeOk(s, r)).sort((a, b) => String(a.date).localeCompare(String(b.date))); let bal = 0;
+  const H = ["التاريخ","الخدمة","النوع","التذكرة","PNR","رقم الفاتورة","خط السير","المبلغ","الرصيد"];
+  const R2 = L2.map(r => { bal = r2(bal + nz(r.selling)); return [r.date, typeLbl(r.type), r.kind, r.ticket, r.pnr, r.doc, r.routing || "", r.selling, bal]; });
+  return {rows: [H, ...R2], html: helpBox("كشف حساب العميل حسب البند من استعلام المستندات. رقم التذكرة للبيع والاسترداد مش بيتكرر، لكن الـ PNR ورقم الفاتورة ممكن يتكرروا.") + `<div class="tbl"><table><thead><tr>${H.map((h, i) => `<th class="${i > 6 ? "num" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${R2.map(r => `<tr>${r.map((c, i) => `<td class="${i > 6 ? "num" : ""}">${i > 6 ? fmt(c) : i === 5 ? lnk(c) : esc(c)}</td>`).join("")}</tr>`).join("") || '<tr><td colspan="9"><div class="empty">مفيش حركات</div></td></tr>'}</tbody></table></div>`}; }); }
+function rTax() { reportShell("rTax", [...DD, {k: "posted", t: "bool", l: "المترحّل بس"}, ...typeDefs()], s => {
+  const g = new Map(); salesRows().filter(r => dOk(s, r.date) && typeOk(s, r) && (!s.posted || r.posted)).forEach(r => { const inv = r.kind === "Sale" || r.kind === "DN" ? "Sales" : "Refund", k = [r.ticket, r.date, inv, r.rate].join("|");
+    const e = g.get(k) || {ticket: r.ticket, date: r.date, inv, svc: typeLbl(r.type), rate: r.rate, base: 0, vat: 0, total: 0}; e.base += nz(r.base) + nz(r.sf); e.vat += nz(r.vat); e.total += nz(r.selling); g.set(k, e); });
+  const G = [...g.values()].sort((a, b) => String(a.date).localeCompare(String(b.date))), H = ["التذكرة","التاريخ","نوع الفاتورة","نوع الخدمة","النسبة %","الأساس الخاضع","الضريبة","الإجمالي"];
+  const byR = new Map(); G.forEach(e => { const k = e.inv + " " + e.rate + "%", z = byR.get(k) || {b: 0, v: 0}; z.b += e.base; z.v += e.vat; byR.set(k, z); });
+  return {rows: [H, ...G.map(e => [e.ticket, e.date, e.inv, e.svc, e.rate, r2(e.base), r2(e.vat), r2(e.total)])],
+    html: kpi([...byR].map(([k, z]) => [k + " (الأساس / الضريبة)", `${fmt(r2(z.b))} / ${fmt(r2(z.v))}`])) + `<div class="tbl"><table><thead><tr>${H.map((h, i) => `<th class="${i > 3 ? "num" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${G.slice(0, 3000).map(e => `<tr><td>${esc(e.ticket)}</td><td>${e.date}</td><td>${e.inv}</td><td>${e.svc}</td><td class="num">${e.rate}%</td><td class="num">${fmt(r2(e.base))}</td><td class="num">${fmt(r2(e.vat))}</td><td class="num">${fmt(r2(e.total))}</td></tr>`).join("")}</tbody></table></div>`}; }); }
+function rProd() { let L2 = []; reportShell("rProd", [...DD, {k: "agent", t: "text", l: "الموظف (Agent ID)"}, {k: "cust", t: "sel", l: "العميل", opts: custOpts}, ...typeDefs()], s => {
+  L2 = salesRows().filter(r => dOk(s, r.date) && typeOk(s, r) && (!s.agent || r.agent.includes(s.agent)) && (!s.cust || r.cust === s.cust)); const g = new Map();
+  L2.forEach(r => { const e = g.get(r.agent || "—") || {sale: 0, ref: 0, selling: 0, profit: 0}; r.kind === "Refund" ? e.ref++ : e.sale++; e.selling += nz(r.selling); e.profit += nz(r.profit); g.set(r.agent || "—", e); });
+  const H = ["الموظف","بيع","استرداد","البيع","الربح"];
+  return {rows: [H, ...[...g].map(([a, e]) => [a, e.sale, e.ref, r2(e.selling), r2(e.profit)])],
+    html: helpBox("اضغط على أي موظف تشوف التفاصيل حسب نوع الخدمة والبيع والاسترداد.") + `<div class="tbl"><table><thead><tr>${H.map((h, i) => `<th class="${i ? "num" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${[...g].sort((a, b) => b[1].selling - a[1].selling).map(([a, e]) => `<tr class="drill" data-drill="${esc(a)}"><td><a class="lnk">${esc(a)}</a></td><td class="num">${e.sale}</td><td class="num">${e.ref}</td><td class="num">${fmt(r2(e.selling))}</td><td class="num">${fmt(r2(e.profit))}</td></tr>`).join("")}</tbody></table></div>`,
+    drill: a => { const R3 = L2.filter(r => (r.agent || "—") === a), g2 = new Map(); R3.forEach(r => { const k = typeLbl(r.type) + " — " + r.kind, e = g2.get(k) || {n: 0, s: 0, p: 0}; e.n++; e.s += nz(r.selling); e.p += nz(r.profit); g2.set(k, e); });
+      showModal(`<h3>إنتاجية ${esc(a)}</h3><div class="tbl"><table><thead><tr><th>الخدمة — النوع</th><th class="num">العدد</th><th class="num">البيع</th><th class="num">الربح</th></tr></thead><tbody>${[...g2].map(([k, e]) => `<tr><td>${k}</td><td class="num">${e.n}</td><td class="num">${fmt(r2(e.s))}</td><td class="num">${fmt(r2(e.p))}</td></tr>`).join("")}</tbody></table></div><div class="bar" style="justify-content:flex-end;margin-top:10px"><button data-close>${t("close")}</button></div>`); }}; }); }
+function rSector() { reportShell("rSector", [...DD], s => { const g = new Map();
+  salesRows().filter(r => r.type === "FLIGHT" && dOk(s, r.date)).forEach(r => { const k = [String(r.date || "").slice(0, 7), r.scope, r.segs].join("|"), e = g.get(k) || {n: 0, sel: 0}; e.n++; e.sel += nz(r.selling); g.set(k, e); });
+  const G = [...g].sort(), H = ["الشهر","المنطقة الضريبية","عدد المقاطع (/)","عدد التذاكر","البيع"];
+  return {rows: [H, ...G.map(([k, e]) => [...k.split("|"), e.n, r2(e.sel)])], html: `<div class="tbl"><table><thead><tr>${H.map((h, i) => `<th class="${i > 2 ? "num" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${G.map(([k, e]) => { const [m, sc, sg] = k.split("|"); return `<tr><td>${m}</td><td>${sc === "DOM" ? "محلي" : "دولي"}</td><td>${sg}</td><td class="num">${e.n}</td><td class="num">${fmt(r2(e.sel))}</td></tr>`; }).join("")}</tbody></table></div>`}; }); }
+function rContract() { reportShell("rContract", [...DD, {k: "cust", t: "sel", l: "العميل", opts: custOpts}, {k: "only", t: "bool", l: "الفروق بس"}], s => {
+  const L2 = salesRows().filter(r => r.type === "FLIGHT" && r.kind === "Sale" && dOk(s, r.date) && (!s.cust || r.cust === s.cust)).map(r => { const cu = byCode("customer", r.cust), ctr = cu && findContract(cu, r.date), file = r.fileSf || (r.x.calc.fileSelling != null ? r2(r.sf + nz(r.x.calc.diff)) : null);
+    return {...r, ctr: ctr ? `${ctr.basis} ${ctr.value}` : "مفيش عقد", file, d: file == null ? null : r2(file - r.sf)}; }).filter(r => !s.only || (r.d && Math.abs(r.d) > 0.5));
+  const H = ["التذكرة","التاريخ","العميل","العقد","رسوم العقد","رسوم العمليات (الملف)","الفرق"];
+  return {rows: [H, ...L2.map(r => [r.ticket, r.date, r.cust, r.ctr, r.sf, r.file ?? "", r.d ?? ""])],
+    html: helpBox("بيقارن رسوم الخدمة حسب العقد بالرسوم اللي فريق العمليات كتبها في الملف، ويطلّع الفرق. الغرض تعرف العمليات بتطبّق العقد ولا بتكتب مبلغ من عندها.") + `<div class="tbl"><table><thead><tr>${H.map((h, i) => `<th class="${i > 3 ? "num" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${L2.slice(0, 3000).map(r => `<tr><td><a class="lnk" data-inv="${esc(r.ticket)}">${esc(r.ticket)}</a></td><td>${r.date}</td><td>${esc(r.cust)}</td><td>${esc(r.ctr)}</td><td class="num">${fmt(r.sf)}</td><td class="num">${r.file == null ? "" : fmt(r.file)}</td><td class="num ${r.d && Math.abs(r.d) > 0.5 ? "bad" : ""}">${r.d == null ? "" : fmt(r.d)}</td></tr>`).join("")}</tbody></table></div>${sumB([["العدد", L2.length], ["إجمالي الفروق", fmt(r2(L2.reduce((a, r) => a + nz(r.d), 0)))]])}`}; }); }
+
+/* ================= Akeed OS code on customer / vendor ================= */
+["customer","vendor"].forEach(k => { const sc = S[k]; if (sc && !sc.fields.some(f => f.k === "akeedOs")) sc.fields.push({k: "akeedOs", l: "كود Akeed OS", list: false}); });
+
+/* ================= register pages & tidy navigation ================= */
+const PAGES = {
+  aosPay: ["Akeed OS payments","Akeed OS payments", renderAos, "recon","secTx"], gwLines: ["Import payment (Moyasar / Payfort)","Import payment", () => renderGw(false), "recon","secTx"],
+  gwRecon: ["Gateway reconciliation","Gateway reconciliation", () => renderGw(true), "recon","secTx"], gwSettle: ["Moyasar / Payfort settlement","Gateway settlement", renderGwSettle, "recon","secTx"],
+  ctaStmt: ["مطابقة كشف AMEX (CTA)","AMEX CTA reconciliation", renderCta, "recon","secTx"], invPost: ["ترحيل CTA / GR (I3 / I4)","Invoice posting CTA / GR", renderInvPost, "recon","secTx"],
+  iataDoc: ["IATA: ADM / ACM / SPDR / SPCR","IATA documents", () => crud("iataDoc"), "recon","secTx"], airFiles: ["ملفات AIR","AIR files", renderAir, "recon","secTx"],
+  postTimeline: ["Posting timeline","Posting timeline", renderTimeline, "recon","secInq"],
+  pm: ["إعداد البوابات وطرق دفع Akeed OS","Gateway & payment setup", () => crud("pm"), "recon","secSetup"], pmFee: ["نسب عمولة البوابات","Gateway fee rates", () => crud("pmFee"), "recon","secSetup"],
+  pmTier: ["شرائح خصم الاسترداد","Refund deduction tiers", () => crud("pmTier"), "recon","secSetup"],
+  svcOrder: ["الخدمات والفنادق والحجوزات الأخرى","Services & hotels", () => crud("svcOrder"), "travel","secTx"], arShare: ["AR Sharing","AR Sharing", renderShare, "travel","secTx"],
+  reverseDoc: ["Reverse (SO / PO)","Reverse (SO / PO)", renderReverse, "travel","secTx"], noteDoc: ["إشعارات دائنة ومدينة (CN / DN)","Credit / debit notes", () => crud("noteDoc"), "travel","secTx"],
+  missingData: ["البيانات الناقصة","Missing data", renderMissing, "travel","secTx"],
+  rDaily: ["Daily sales report","Daily sales report", rDaily, "travel","secInq"], rItem: ["كشف العميل حسب البند","Customer statement item-wise", rItem, "travel","secInq"],
+  rTax: ["تقرير الضريبة المجمّع","Grouped tax report", rTax, "travel","secInq"], rProd: ["تقرير الإنتاجية","Productivity report", rProd, "travel","secInq"],
+  rSector: ["Sector code report","Sector code report", rSector, "travel","secInq"], rContract: ["التزام عقود رسوم الخدمة","Service fee contract compliance", rContract, "travel","secInq"],
+  opSet: ["إعدادات العمليات","Operations settings", renderOpSet, "travel","secSetup"], revMap: ["الإيراد حسب شركة الطيران","Revenue by airline", () => crud("revMap"), "travel","secSetup"],
+  roomType: ["أنواع الغرف","Room types", () => crud("roomType"), "travel","secSetup"], worker: ["الموظفين (Workers)","Workers", () => crud("worker"), "travel","secSetup"],
+  custCard: ["بطاقات العملاء","Customer cards", () => crud("custCard"), "travel","secSetup"], custReq: ["الحقول الإجبارية لكل عميل","Mandatory fields per customer", () => crud("custReq"), "travel","secSetup"],
+  pendingMd: ["العملاء والموردين المعلّقين","Pending customers & vendors", renderPendingMd, "travel","secSetup"], codeUpload: ["رفع أكواد Akeed OS","Akeed OS codes upload", renderCodeUpload, "travel","secSetup"],
+};
+const DROP = {recon: ["gateway","admAcm"], travel: ["svcBooking","productivity","svcReport"]};
+Object.entries(DROP).forEach(([m, ks]) => { const mod = NAV.find(x => x.id === m); if (mod) mod.s.forEach(sec => { sec[1] = sec[1].filter(k => !ks.includes(k)); }); });
+Object.entries(PAGES).forEach(([k, [ar, en, fn, m, s]]) => { PT[k] = [ar, en, en, en, en]; R[k] = fn; const mod = NAV.find(x => x.id === m); if (!mod) return;
+  let sec = mod.s.find(x => x[0] === s); if (!sec) { sec = [s, []]; mod.s.push(sec); } if (!sec[1].includes(k)) sec[1].push(k); PAGE_MOD[k] = {m, s}; });
+if (!WORKSPACES.includes("aosPay")) WORKSPACES.push("aosPay");
+try { seedPM(); persist(); } catch (e) { console.warn(e); }
+route(current);
+})();
+</script>
+</body>
+</html>
