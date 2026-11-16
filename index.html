@@ -1884,5 +1884,81 @@ function route(k, opt = {}) {
 load(); applyLang();
 route(location.hash.slice(1) || "dash");
 </script>
-</body>
-</html>
+
+<script>
+/* ===================================================================
+   PART 1 — D365 filter pane, Flights workbench, Invoice inquiry (ticket), voucher view, filtered lists
+   =================================================================== */
+(() => {
+"use strict";
+document.head.insertAdjacentHTML("beforeend", `<style>
+.fpane{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;background:#fff;border:1px solid var(--line);padding:10px 14px;margin-bottom:10px}
+.fpane label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:140px}
+.fpane input,.fpane select{height:30px;min-width:140px}
+.fpane label.chk{flex-direction:row;align-items:center;gap:6px;min-width:0;color:var(--text);font-size:13px;padding-bottom:6px}
+.fpane .fp-reset{margin-inline-start:auto;min-height:30px}
+.sumbar{display:flex;flex-wrap:wrap;gap:6px 24px;background:#faf9f8;border:1px solid var(--line);border-top:0;padding:8px 14px;font-size:13px}
+.sumbar b{font-variant-numeric:tabular-nums}
+td.sel,th.sel{width:32px;text-align:center}
+a.lnk{color:var(--blue);cursor:pointer;text-decoration:underline}
+.ft{background:#fff;border:1px solid var(--line);margin-bottom:12px}
+.ft>h4{margin:0;padding:10px 16px;font-size:15px;border-bottom:1px solid var(--line)}
+.ft>.ft-b{padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 18px}
+.ft .fv{display:flex;flex-direction:column;font-size:12px;color:var(--muted)}
+.ft .fv b{font-size:14px;color:var(--text);font-weight:600;margin-top:2px}
+.ft .fv b.bad{color:var(--bad)}
+</style>`);
+
+const MONTHS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const FST = {}, SEL = new Set(), X = {invq: "", vis: []};
+const st = k => FST[k] || (FST[k] = {});
+const uniq = a => [...new Set(a)].sort();
+const DATE_DEFS = [{k:"from",t:"date",l:"من تاريخ"},{k:"to",t:"date",l:"إلى تاريخ"},{k:"month",t:"month",l:"الشهر"},{k:"year",t:"year",l:"السنة"}];
+function fpHtml(key, defs) {
+  const s = st(key);
+  return `<div class="fpane" data-fp="${key}">${defs.map(d => { const v = s[d.k] ?? "";
+    if (d.t === "date") return `<label>${d.l}<input type="date" data-fk="${d.k}" value="${esc(v)}"></label>`;
+    if (d.t === "month") return `<label>${d.l}<select data-fk="${d.k}"><option value="">الكل</option>${MONTHS.map((m, i) => `<option value="${i + 1}"${String(v) === String(i + 1) ? " selected" : ""}>${m}</option>`).join("")}</select></label>`;
+    if (d.t === "year") return `<label>${d.l}<input type="number" data-fk="${d.k}" value="${esc(v)}" placeholder="الكل" style="min-width:100px;width:100px"></label>`;
+    if (d.t === "bool") return `<label class="chk"><input type="checkbox" data-fk="${d.k}"${v ? " checked" : ""}> ${d.l}</label>`;
+    if (d.t === "sel") return `<label>${d.l}<select data-fk="${d.k}"><option value="">الكل</option>${d.opts().map(([a, b]) => `<option value="${esc(a)}"${String(v) === String(a) ? " selected" : ""}>${esc(b)}</option>`).join("")}</select></label>`;
+    return `<label>${d.l}<input data-fk="${d.k}" value="${esc(v)}" placeholder="${esc(d.ph || "")}"></label>`;
+  }).join("")}<button class="fp-reset" data-fpreset>↺ مسح الفلاتر</button></div>`;
+}
+function fpWire(key, redraw) {
+  const el = mainEl.querySelector(`[data-fp="${key}"]`); if (!el) return;
+  const s = st(key), h = e => { const k = e.target.dataset.fk; if (!k) return; s[k] = e.target.type === "checkbox" ? e.target.checked : e.target.value; redraw(); };
+  el.addEventListener("input", h); el.addEventListener("change", h);
+  el.querySelector("[data-fpreset]").onclick = () => { Object.keys(s).forEach(k => delete s[k]); route(current); };
+}
+function dateOk(s, d) {
+  if (!(s.from || s.to || s.month || s.year)) return true; if (!d) return false;
+  if (s.from && d < s.from) return false; if (s.to && d > s.to) return false;
+  if (s.month && Number(d.slice(5, 7)) !== Number(s.month)) return false;
+  if (s.year && Number(d.slice(0, 4)) !== Number(s.year)) return false;
+  return true;
+}
+const sumBar = items => `<div class="sumbar">${items.map(([l, v]) => `<span>${l}: <b>${v}</b></span>`).join("")}</div>`;
+function runBatch(ids, fn, done) {
+  let i = 0, ok = 0; const fails = [];
+  const step = () => { const end = Math.min(i + 100, ids.length); for (; i < end; i++) { const e = fn(ids[i]); if (e) fails.push(e); else ok++; }
+    toast(`جاري المعالجة ${i} / ${ids.length}`); if (i < ids.length) setTimeout(step, 0); else done(ok, fails); };
+  step();
+}
+
+/* documents, hyperlinks, voucher */
+const docLink = no => no ? `<a class="lnk" data-doc="${esc(no)}">${esc(no)}</a>` : "";
+const docType = no => DB.arInv.some(x => x.number === no && !x.cn) ? "فاتورة عميل (SO)" : DB.arInv.some(x => x.number === no) ? "إشعار دائن عميل"
+  : DB.apInv.some(x => x.number === no && !x.cn) ? "فاتورة مورد (PO)" : DB.apInv.some(x => x.number === no) ? "إشعار دائن مورد" : "قيد";
+function openDoc(no) {
+  let d = DB.arInv.find(x => x.number === no); if (d) return openInvoice("AR", d.id);
+  d = DB.apInv.find(x => x.number === no); if (d) return openInvoice("AP", d.id);
+  d = DB.journal.find(x => x.number === no); if (d) return openJournal(d.id);
+  toast("المستند مش موجود");
+}
+const jvOf = no => { const d = DB.arInv.find(x => x.number === no) || DB.apInv.find(x => x.number === no); return d ? d.jv : no; };
+function showVoucher(nos, title) {
+  const js = uniq(nos.filter(Boolean).map(jvOf)).map(n => DB.journal.find(j => j.number === n)).filter(Boolean); let dr = 0, cr = 0;
+  const rows = js.flatMap(j => j.lines.map(l => { dr += l.dr; cr += l.cr; const a = rec("account", l.acc) || {};
+    return `<tr><td>${esc(j.number)}</td><td>${j.date}</td><td>${esc(j.doc || "")}</td><td>${esc(a.code || "")}</td><td>${esc(a.nameAr || a.name || "")}</td><td>${esc(l.cust ? refCode("customer", l.cust) : l.vend ? refCode("vendor", l.vend) : "")}</td><td>${esc(l.memo || j.desc)}</td><td class="num">${l.dr ? fmt(l.dr) : ""}</td><td class="num">${l.cr ? fmt(l.cr) : ""}</td></tr>`; })).join("");
+  showModal(`<h3>📒 ${esc(title || "القيود")}</h3><div class
